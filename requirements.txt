@@ -1,4 +1,2 @@
 streamlit
-tkcalendar
-babel
 streamlit-authenticator
