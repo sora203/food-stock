@@ -6,9 +6,9 @@ import streamlit_authenticator as stauth
 # --- 1. ログイン設定 ---
 credentials = {
     'usernames': {
-        'tomoki': {'name': 'Tomoki','password': '65099962'},
+        'tomoki': {'name': 'tomo','password': '65099962'},
         'mom': {'name': 'kumippe','password': '40358253'},
-        'friend1': {'name': 'kiyotake','password': '80142208'},
+        'friend1': {'name': 'kiyo','password': '80142208'},
         'friend2': {'name': 'kouha','password': '66831670'},
         'friend3': {'name': 'kake','password': '74156184'},
     }
