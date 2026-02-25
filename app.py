@@ -17,9 +17,9 @@ credentials = {
 
 authenticator = stauth.Authenticate(credentials, "fridge_v5", "signature_key", 30)
 
-# --- 2. スプレッドシート接続 ---
-# st.connection が Secrets の [connections.gsheets] を自動で読み込みます
-conn = st.connection("gsheets", type=GSheetsConnection)
+# これに書き換えてください
+conn = st.connection("gsheets", type=GSheetsConnection, connection_name="gsheets", **st.secrets)
+df = conn.read(spreadsheet=st.secrets["spreadsheet_url"], ttl=0)
 
 # --- 3. ログイン画面 ---
 authenticator.login()
