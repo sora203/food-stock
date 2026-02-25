@@ -56,7 +56,8 @@ if st.session_state.get("authentication_status"):
                     }])
                     # 既存のデータと合体させて更新
                     updated_df = pd.concat([df, new_data], ignore_index=True)
-                    conn.update(data=updated_df)
+                    #conn.update(data=updated_df)
+                    st.warning("現在、書き込み機能をメンテナンス中です")
                     st.success(f"「{f_name}」を登録したよ！")
                     st.rerun()
 
