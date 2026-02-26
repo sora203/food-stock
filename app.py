@@ -5,39 +5,49 @@ from datetime import datetime, date
 import requests
 import urllib.parse
 
-# --- 🎨 カスタムCSS（背景デザイン強化版） ---
+# --- 🎨 カスタムCSS（サイドバー・ダークモード仕様） ---
 def local_css():
     st.markdown("""
         <style>
-        /* アプリ全体の背景を木目調に強制固定 */
+        /* アプリ全体の背景（木目調） */
         .stApp {
             background-image: url("https://www.toptal.com/designers/subtlepatterns/uploads/wood_pattern.png");
             background-repeat: repeat;
             background-attachment: fixed;
-            background-size: auto;
         }
 
-        /* コンテンツエリアを読みやすく白透過にする */
+        /* メインコンテンツ（白透過） */
         [data-testid="stAppViewBlockContainer"] {
             background-color: rgba(255, 255, 255, 0.92);
             padding: 3rem;
             border-radius: 20px;
             box-shadow: 0 10px 30px rgba(0,0,0,0.3);
             margin-top: 2rem;
-            margin-bottom: 2rem;
         }
 
-        /* サイドバー（薄いグレー） */
+        /* 🌙 サイドバーだけダークモード */
         [data-testid="stSidebar"] {
-            background-color: rgba(245, 245, 245, 0.95) !important;
+            background-color: #262730 !important; /* ダークグレー */
+            color: #ffffff !important;
+        }
+        
+        /* サイドバー内のテキストを白くする */
+        [data-testid="stSidebar"] .stMarkdown, 
+        [data-testid="stSidebar"] label,
+        [data-testid="stSidebar"] p {
+            color: #ffffff !important;
+        }
+        
+        /* サイドバー内の入力欄のデザイン調整 */
+        [data-testid="stSidebar"] input, 
+        [data-testid="stSidebar"] select {
+            background-color: #3e404b !important;
+            color: white !important;
+            border: 1px solid #555 !important;
         }
 
         /* ログインボタン（大きく・中央・緑） */
-        .stLinkButton {
-            display: flex;
-            justify-content: center;
-            padding: 20px 0;
-        }
+        .stLinkButton { display: flex; justify-content: center; padding: 20px 0; }
         div.stLinkButton > a {
             background-color: #06C755 !important;
             color: white !important;
@@ -46,14 +56,12 @@ def local_css():
             font-size: 1.4rem !important;
             font-weight: bold !important;
             text-decoration: none !important;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.2) !important;
         }
 
-        /* タイトルデザイン（改行風） */
+        /* タイトルデザイン */
         .user-title { font-size: 1.3rem; color: #666; margin-bottom: -5px; }
         .main-title { font-size: 3.5rem; font-weight: 800; color: #333; line-height: 1; margin-bottom: 20px; }
         
-        /* 不要な要素の非表示 */
         #MainMenu {visibility: hidden;}
         footer {visibility: hidden;}
         </style>
@@ -198,4 +206,5 @@ if client:
                 st.rerun()
     else:
         st.info("データがありません")
+
 
