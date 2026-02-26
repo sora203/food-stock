@@ -4,7 +4,7 @@ import pandas as pd
 from datetime import datetime, date
 import requests
 
-# --- 🎨 カスタムCSS（デザイン完全版） ---
+# --- 🎨 カスタムCSS（デザイン最終調整版） ---
 def local_css():
     st.markdown("""
         <style>
@@ -16,7 +16,7 @@ def local_css():
         }
         /* メインエリア：ベージュ透過 */
         [data-testid="stAppViewBlockContainer"] {
-            background-color: rgba(245, 222, 179, 0.85);
+            background-color: rgba(245, 222, 179, 0.7); /* 透過度を少し上げて馴染ませる */
             padding: 3rem;
             border-radius: 15px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
@@ -25,26 +25,31 @@ def local_css():
         /* サイドバー：ダークモード */
         [data-testid="stSidebar"] {
             background-color: #262730 !important;
-            color: #ffffff !important;
         }
-        /* 💡 入力欄の黒枠・背景を修正 */
+        
+        /* 💡 サイドバー内の全入力欄（黒枠を消し、背景を馴染ませる） */
+        [data-testid="stSidebar"] input, 
         [data-testid="stSidebar"] div[data-baseweb="select"] > div,
-        [data-testid="stSidebar"] input,
-        [data-testid="stSidebar"] .stNumberInput div {
-            background-color: #4b4d59 !important;
-            color: white !important;
-            border: none !important;
-            box-shadow: none !important;
-        }
-        /* セレクトボックス内の文字色 */
-        [data-testid="stSidebar"] div[data-baseweb="select"] svg {
-            fill: white !important;
+        [data-testid="stSidebar"] .stNumberInput div,
+        [data-testid="stSidebar"] .stDateInput div {
+            background-color: #3e404b !important; /* 少し明るいグレー */
+            color: #ffffff !important;
+            border: none !important; /* 枠線を消す */
+            box-shadow: none !important; /* フォーカス時の影を消す */
         }
         
-        /* タイトルデザイン */
-        .user-title { font-size: 1.3rem; color: #5d4037; margin-bottom: -5px; }
-        .main-title { font-size: 3.5rem; font-weight: 900; color: #3e2723; line-height: 1.1; margin-bottom: 20px; }
-        
+        /* セレクトボックスの矢印アイコンを白に */
+        [data-testid="stSidebar"] svg {
+            fill: #ffffff !important;
+        }
+
+        /* サイドバーのラベル文字 */
+        [data-testid="stSidebar"] label p {
+            color: #ffffff !important;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+
         /* ログインボタン（緑・中央） */
         .stLinkButton { display: flex; justify-content: center; padding: 20px 0; }
         div.stLinkButton > a {
@@ -57,7 +62,11 @@ def local_css():
             text-decoration: none !important;
         }
 
-        /* 💡 ヘッダーの不要なアイコンを隠す */
+        /* タイトル */
+        .user-title { font-size: 1.2rem; color: #5d4037; margin-bottom: -5px; }
+        .main-title { font-size: 3.5rem; font-weight: 900; color: #3e2723; line-height: 1.1; margin-bottom: 20px; }
+        
+        /* ヘッダー・フッターを隠す */
         header {visibility: hidden;}
         #MainMenu, footer {visibility: hidden;}
         </style>
@@ -107,7 +116,6 @@ query_params = st.query_params
 if "code" not in query_params:
     st.markdown("<br><br><br>", unsafe_allow_html=True)
     st.markdown("<h1 style='text-align: center; color: #3e2723; font-size: 3.5rem;'>Stock Manager</h1>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #5d4037; font-size: 1.3rem;'>毎日の食材管理を、もっと楽しく。</p>", unsafe_allow_html=True)
     st.link_button("LINEでログイン", get_line_login_url())
     st.stop()
 else:
@@ -152,11 +160,10 @@ if client:
                 st.rerun()
 
     if not df.empty:
-        df_disp = df.copy()
-        df_disp.insert(0, "選択", False)
+        df_disp = df.copy().insert(0, "選択", False) or df.assign(選択=False)
         df_disp = df_disp[["選択", "品名", "数量", "賞味期限", "保存場所", "種類"]]
 
-        search = st.text_input("検索")
+        search = st.text_input("検索", placeholder="品名で絞り込み...")
         if search:
             df_disp = df_disp[df_disp.apply(lambda r: r.astype(str).str.contains(search, case=False).any(), axis=1)]
 
