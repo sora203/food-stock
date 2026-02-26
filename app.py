@@ -3,8 +3,9 @@ import gspread
 import pandas as pd
 from datetime import datetime, date
 import requests
+import time
 
-# --- 🎨 カスタムCSS（デザイン維持） ---
+# --- 🎨 カスタムCSS ---
 def local_css():
     st.markdown("""
         <style>
@@ -40,7 +41,7 @@ def local_css():
             color: white !important;
             border-radius: 50px !important;
             padding: 1.2rem 5rem !important;
-            font-size: 1.5rem !important;
+            font-size: 1.4rem !important;
             font-weight: bold !important;
             text-decoration: none !important;
         }
@@ -75,6 +76,7 @@ def get_line_user_info(code):
     payload = {"id_token": id_token, "client_id": st.secrets["line"]["login_channel_id"]}
     return requests.post("https://api.line.me/oauth2/v2.1/verify", data=payload).json()
 
+@st.cache_resource(ttl=600) # 10分間クライアントをキャッシュして再接続を減らす
 def get_gspread_client():
     try:
         raw_key = st.secrets["connections"]["gsheets"]["private_key"]
@@ -116,29 +118,28 @@ st.markdown(f"<div class='user-title'>{user_name} 様</div><div class='main-titl
 
 client = get_gspread_client()
 if client:
-    # 💡 スプレッドシート接続の保護
     try:
+        # 💡 キャッシュ対策：毎回URLから開くのではなく、一度取得したシート情報を使い回す工夫
         sh = client.open_by_url(URL)
-    except Exception as e:
-        st.error("Googleスプレッドシートに接続できません。少し時間を置いて再試行するか、権限設定を確認してください。")
-        st.stop()
+        try:
+            worksheet = sh.worksheet(user_name)
+        except gspread.exceptions.WorksheetNotFound:
+            worksheet = sh.add_worksheet(title=user_name, rows="1000", cols="10")
+            worksheet.append_row(["品名", "数量", "賞味期限", "保存場所", "種類", "LINE_ID"])
+            time.sleep(1) # 作成直後の安定待ち
+            st.rerun()
 
-    try:
-        worksheet = sh.worksheet(user_name)
-    except:
-        worksheet = sh.add_worksheet(title=user_name, rows="1000", cols="10")
-        worksheet.append_row(["品名", "数量", "賞味期限", "保存場所", "種類", "LINE_ID"])
-        st.rerun()
-
-    # データの読み込み
-    try:
+        # データの読み込み
         data = worksheet.get_all_records()
         df = pd.DataFrame(data) if data else pd.DataFrame(columns=["品名", "数量", "賞味期限", "保存場所", "種類", "LINE_ID"])
-    except:
-        st.warning("データの読み込みに失敗しました。画面を更新してください。")
+
+    except Exception as e:
+        st.error("シートの読み込み中にエラーが発生しました。時間を置いてから再度お試しください。")
+        if st.button("再試行"):
+            st.rerun()
         st.stop()
 
-    # --- サイドバー：合算ロジック付き追加 ---
+    # --- サイドバー：合算ロジック ---
     with st.sidebar:
         st.markdown("### 在庫を追加")
         with st.form("add_form", clear_on_submit=True):
@@ -149,78 +150,62 @@ if client:
             cat2 = st.selectbox("種類", ["肉", "野菜", "麺", "飲み物", "その他"])
             
             if st.form_submit_button("リストに追加") and name:
-                # 同一条件の検索
                 match = (df['品名'] == name) & (df['賞味期限'] == expiry) & (df['保存場所'] == cat1) & (df['種類'] == cat2)
-                
                 try:
                     if match.any():
                         idx = df.index[match][0]
                         new_qty = int(df.at[idx, '数量']) + amount
                         worksheet.update_cell(int(idx) + 2, 2, int(new_qty))
-                        st.toast(f"{name}の数量を更新しました")
                     else:
                         worksheet.append_row([name, int(amount), expiry, cat1, cat2, user_id])
-                        st.toast(f"{name}を追加しました")
                     st.rerun()
                 except:
-                    st.error("追加に失敗しました。しばらく待ってからやり直してください。")
+                    st.error("API制限中です。しばらくお待ちください。")
 
-    # --- メインエリア：編集・削除機能 ---
+    # --- メインエリア ---
     if not df.empty:
         df_display = df.copy()
         df_display.insert(0, "選択", False)
         
-        search_query = st.text_input("検索", placeholder="品名で絞り込み...")
+        search_query = st.text_input("検索")
         if search_query:
             mask = df_display.drop(columns=["選択"]).apply(lambda r: r.astype(str).str.contains(search_query, case=False).any(), axis=1)
             df_display = df_display[mask]
 
         c1, c2 = st.columns([1, 1])
         with c1:
-            if st.button("🔔 期限間近を通知"):
+            if st.button("🔔 期限通知"):
                 today = date.today()
                 alerts = [f"・{r['品名']} ({r['賞味期限']})" for _, r in df.iterrows() if (datetime.strptime(str(r["賞味期限"]), '%Y/%m/%d').date() - today).days <= 3]
                 if alerts:
-                    msg = f"\n【期限間近リスト】\n" + "\n".join(alerts); send_individual_line(user_id, msg); st.success("通知済")
+                    send_individual_line(user_id, "\n".join(alerts)); st.success("通知済")
         with c2:
             delete_btn = st.button("🗑️ 選択項目を削除", type="primary")
 
-        # 💡 編集可能なデータエディタ
         edited_df = st.data_editor(
             df_display.drop(columns=["LINE_ID"], errors='ignore'),
             use_container_width=True,
             hide_index=True,
-            column_config={
-                "選択": st.column_config.CheckboxColumn(),
-                "数量": st.column_config.NumberColumn(min_value=0, step=1)
-            },
+            column_config={"選択": st.column_config.CheckboxColumn(), "数量": st.column_config.NumberColumn(min_value=0)},
             disabled=["品名", "賞味期限", "保存場所", "種類"],
-            key="data_editor"
+            key="main_editor"
         )
 
-        # 💡 数量変更の保存
-        if st.session_state.get("data_editor") and st.session_state["data_editor"]["edited_rows"]:
-            try:
-                for row_idx, changes in st.session_state["data_editor"]["edited_rows"].items():
-                    if "数量" in changes:
+        # 💡 編集の反映（セッション状態を確認してAPIを叩く）
+        if st.session_state.get("main_editor") and st.session_state["main_editor"]["edited_rows"]:
+            for row_idx, changes in st.session_state["main_editor"]["edited_rows"].items():
+                if "数量" in changes:
+                    try:
                         actual_idx = df_display.index[row_idx]
-                        new_val = changes["数量"]
-                        worksheet.update_cell(int(actual_idx) + 2, 2, int(new_val))
-                st.rerun()
-            except:
-                pass
+                        worksheet.update_cell(int(actual_idx) + 2, 2, int(changes["数量"]))
+                    except: pass
+            st.rerun()
 
-        # 削除処理
         if delete_btn:
             delete_indices = edited_df[edited_df["選択"] == True].index.tolist()
             if delete_indices:
-                try:
-                    remaining_df = df.drop(delete_indices)
-                    new_data = [["品名", "数量", "賞味期限", "保存場所", "種類", "LINE_ID"]] + remaining_df.values.tolist()
-                    worksheet.clear()
-                    worksheet.update('A1', new_data)
-                    st.rerun()
-                except:
-                    st.error("削除に失敗しました。")
+                remaining_df = df.drop(delete_indices)
+                new_data = [["品名", "数量", "賞味期限", "保存場所", "種類", "LINE_ID"]] + remaining_df.values.tolist()
+                worksheet.clear(); worksheet.update('A1', new_data); st.rerun()
     else:
         st.info("データがありません")
