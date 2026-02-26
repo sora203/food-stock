@@ -15,7 +15,7 @@ with st.sidebar.form("add_form"):
     name = st.text_input("品名")
     amount = st.number_input("数量", min_value=1, step=1)
     expiry_date = st.date_input("賞味期限")
-    category = st.selectbox("カテゴリー", ["冷蔵", "冷凍", "常温", "その他"])
+    category = st.selectbox("カテゴリー", ["肉", "野菜", "海鮮", "その他"])
     submit_button = st.form_submit_button("在庫を追加する")
 
 # --- 追加ボタンが押された時の処理 ---
@@ -47,3 +47,4 @@ if submit_button:
 st.subheader("現在の在庫一覧")
 df = conn.read(spreadsheet=url, ttl=0)
 st.dataframe(df, use_container_width=True)
+
