@@ -3,10 +3,18 @@ import gspread
 import pandas as pd
 from datetime import datetime, date
 import requests
+from streamlit_line_login import LineLogin
 
 # --- 設定 ---
-st.set_page_config(page_title="個別在庫管理", layout="wide")
+st.set_page_config(page_title="LINEログイン在庫管理", layout="wide")
 URL = "https://docs.google.com/spreadsheets/d/10Hhcn0qNOvGceSNWLxy3_IOCJTvS1i9xaarZirmUUdw/edit?usp=sharing"
+
+# --- LINEログイン初期化 ---
+line_login = LineLogin(
+    client_id=st.secrets["line"]["login_channel_id"],
+    client_secret=st.secrets["line"]["login_channel_secret"],
+    redirect_uri=f"https://{st.secrets.get('app_url', 'YOUR_APP_NAME.streamlit.app')}", # 後述の注意参照
+)
 
 def get_gspread_client():
     try:
@@ -21,7 +29,7 @@ def get_gspread_client():
     except Exception as e:
         st.error(f"認証エラー: {e}"); return None
 
-# --- 💬 LINE個別通知関数 ---
+# --- 💬 LINE通知関数 ---
 def send_individual_line(to_id, message):
     try:
         url = "https://api.line.me/v2/bot/message/push"
@@ -34,70 +42,46 @@ def send_individual_line(to_id, message):
         return res.status_code
     except: return None
 
-# --- 🔑 ログイン処理 ---
-if "authenticated" not in st.session_state: st.session_state.authenticated = False
-if not st.session_state.authenticated:
+# --- 🔐 ログイン処理 ---
+# パスワード入力の代わりにLINEログインを実行
+line_user = line_login.login()
+
+if not line_user:
     st.title("🔐 在庫管理ログイン")
-    password = st.text_input("アクセスパスワード", type="password")
-    if st.button("ログイン"):
-        if password == "admin1234": # 救済用
-            st.session_state.show_rescue = True
-        elif password:
-            st.session_state.authenticated = True
-            st.session_state.current_pw = password
-            st.rerun()
-    
-    if st.session_state.get("show_rescue"):
-        st.warning("⚠️ 登録済みパスワード一覧")
-        client = get_gspread_client()
-        if client:
-            sh = client.open_by_url(URL)
-            st.code([s.title for s in sh.worksheets() if s.title != "admin_log"])
+    st.info("下のボタンからLINEでログインしてください。")
     st.stop()
 
+# ログイン成功時、ユーザー情報を取得
+user_id = line_user['sub']         # これが U... から始まる内部ID
+user_name = line_user['name']      # LINEの表示名（Aさん、Bさん）
+
 # --- メイン画面 ---
-st.title(f"🍎 {st.session_state.current_pw} さんの在庫リスト")
+st.title(f"🍎 {user_name} さんの在庫リスト")
 
 client = get_gspread_client()
 if client:
     sh = client.open_by_url(URL)
-    sheet_name = st.session_state.current_pw
+    # LINEの表示名をシート名にする（シートがなければ自動作成）
+    sheet_name = user_name
     
     try:
         worksheet = sh.worksheet(sheet_name)
     except:
         worksheet = sh.add_worksheet(title=sheet_name, rows="100", cols="20")
         worksheet.append_row(["品名", "数量", "賞味期限", "保存場所", "種類", "LINE_ID"])
+        # 初回作成時にIDを2行目6列目に書き込む
+        worksheet.update_cell(2, 6, user_id)
         st.rerun()
 
-    # --- 🆔 LINE ID設定セクション（案1：QRガイド付き） ---
-    rows = worksheet.get_all_values()
-    user_line_id = rows[1][5] if len(rows) > 1 and len(rows[1]) >= 6 else ""
+    # IDを取得（念のため常に最新を保持）
+    worksheet.update_cell(2, 6, user_id)
 
-    with st.expander("👤 初めて使う方：LINE通知の設定はこちら"):
-        st.write("個別の通知を受け取るには、以下の2ステップが必要です。")
-        col_qr, col_inst = st.columns([1, 2])
-        
-        with col_qr:
-            # 💡 ここにあなたのLINE BOTのQRコード画像URLを貼ってください
-            # LINE DevelopersのMessaging API設定タブにあるQRコードのURLをコピーして貼り付けます
-            st.image("https://qr-official.line.me/sid/L/844jqkri.png", caption="1. 友達追加")
-        
-        with col_inst:
-            st.write("2. あなたの『LINEユーザーID』を入力してください。")
-            st.info("※LINE IDとは異なります。管理画面等で確認できる『U...』から始まる英数字です。")
-            new_id = st.text_input("LINEユーザーIDを貼り付け", value=user_line_id)
-            if st.button("通知設定を保存"):
-                worksheet.update_cell(2, 6, new_id)
-                st.success("保存完了！これで自分に通知が届くようになります。")
-                st.rerun()
-
-    # --- 在庫操作パネル（サイドバー） ---
+    # --- 在庫操作パネル ---
     STORAGE_CATS = ["冷蔵", "冷凍", "常温", "その他"]
     TYPE_CATS = ["肉", "野菜", "麺", "飲み物", "その他"]
     
     st.sidebar.title("🛠️ 操作パネル")
-    filter_storage = st.sidebar.multiselect("保存場所で絞り込む", STORAGE_CATS)
+    st.sidebar.write(f"ログイン中: {user_name}")
     
     with st.sidebar.form("add_form"):
         st.subheader("➕ 在庫の追加")
@@ -116,32 +100,25 @@ if client:
         df = pd.DataFrame(data)
         if "LINE_ID" in df.columns: df = df.drop(columns=["LINE_ID"])
 
-        # 🔔 通知ボタン
-        if st.button("期限が近い在庫を自分のLINEに送る", type="secondary"):
-            if not user_line_id:
-                st.error("先に『通知設定』からIDを登録してください。")
+        # 🔔 通知ボタン（ID入力を介さず、ログイン情報から直接送信！）
+        if st.button("期限が近い在庫を自分のLINEに送る"):
+            today = date.today()
+            alerts = []
+            for _, r in df.iterrows():
+                try:
+                    d = datetime.strptime(str(r["賞味期限"]), '%Y/%m/%d').date()
+                    if (d - today).days <= 3:
+                        alerts.append(f"・{r['品名']} ({r['賞味期限']})")
+                except: continue
+            
+            if alerts:
+                msg = f"\n【{user_name}さんの期限間近リスト】\n" + "\n".join(alerts)
+                if send_individual_line(user_id, msg) == 200:
+                    st.success("LINEに通知を飛ばしました！")
             else:
-                today = date.today()
-                alerts = []
-                for _, r in df.iterrows():
-                    try:
-                        d = datetime.strptime(str(r["賞味期限"]), '%Y/%m/%d').date()
-                        if (d - today).days <= 3:
-                            alerts.append(f"・{r['品名']} ({r['賞味期限']})")
-                    except: continue
-                
-                if alerts:
-                    msg = f"\n【{sheet_name}さんの期限間近リスト】\n" + "\n".join(alerts) + "\n早めに使いましょう！"
-                    if send_individual_line(user_line_id, msg) == 200:
-                        st.success("LINEに通知を飛ばしました！")
-                else:
-                    st.info("3日以内に期限が切れるものはありません。")
+                st.info("3日以内に期限が切れるものはありません。")
 
-        # 在庫一覧（編集・削除機能付き）
         st.subheader("📦 在庫一覧")
         st.data_editor(df, use_container_width=True, hide_index=True)
-
     else:
         st.info("データがありません。サイドバーから追加してください。")
-
-
