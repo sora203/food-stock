@@ -26,8 +26,7 @@ def get_line_login_url():
     return url
 
 def get_line_user_info(code):
-    # ここも 2重変換されないように、変な関数を通さず書く
-"redirect_uri": "https://food-memo-app.streamlit.app",
+    token_url = "https://api.line.me/oauth2/v2.1/token"
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
     data = {
         "grant_type": "authorization_code",
@@ -159,4 +158,5 @@ if client:
         st.data_editor(df, use_container_width=True, hide_index=True)
     else:
         st.info("データがありません。サイドバーから追加してください。")
+
 
