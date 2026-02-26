@@ -4,81 +4,32 @@ import pandas as pd
 from datetime import datetime, date
 import requests
 
-# --- 🎨 カスタムCSS（デザイン最終調整版） ---
+# --- 🎨 カスタムCSS（デザイン維持） ---
 def local_css():
     st.markdown("""
         <style>
-        /* 木目背景 */
-        .stApp {
-            background-image: url("https://www.toptal.com/designers/subtlepatterns/uploads/wood_pattern.png");
-            background-repeat: repeat;
-            background-attachment: fixed;
+        .stApp { background-image: url("https://www.toptal.com/designers/subtlepatterns/uploads/wood_pattern.png"); background-repeat: repeat; background-attachment: fixed; }
+        [data-testid="stAppViewBlockContainer"] { background-color: rgba(245, 222, 179, 0.7); padding: 3rem; border-radius: 15px; margin-top: 2rem; }
+        [data-testid="stSidebar"] { background-color: #262730 !important; }
+        [data-testid="stSidebar"] input, [data-testid="stSidebar"] div[data-baseweb="select"] > div, [data-testid="stSidebar"] .stNumberInput div, [data-testid="stSidebar"] .stDateInput div {
+            background-color: #3e404b !important; color: #ffffff !important; border: none !important; box-shadow: none !important;
         }
-        /* メインエリア：ベージュ透過 */
-        [data-testid="stAppViewBlockContainer"] {
-            background-color: rgba(245, 222, 179, 0.7); /* 透過度を少し上げて馴染ませる */
-            padding: 3rem;
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            margin-top: 2rem;
-        }
-        /* サイドバー：ダークモード */
-        [data-testid="stSidebar"] {
-            background-color: #262730 !important;
-        }
-        
-        /* 💡 サイドバー内の全入力欄（黒枠を消し、背景を馴染ませる） */
-        [data-testid="stSidebar"] input, 
-        [data-testid="stSidebar"] div[data-baseweb="select"] > div,
-        [data-testid="stSidebar"] .stNumberInput div,
-        [data-testid="stSidebar"] .stDateInput div {
-            background-color: #3e404b !important; /* 少し明るいグレー */
-            color: #ffffff !important;
-            border: none !important; /* 枠線を消す */
-            box-shadow: none !important; /* フォーカス時の影を消す */
-        }
-        
-        /* セレクトボックスの矢印アイコンを白に */
-        [data-testid="stSidebar"] svg {
-            fill: #ffffff !important;
-        }
-
-        /* サイドバーのラベル文字 */
-        [data-testid="stSidebar"] label p {
-            color: #ffffff !important;
-            font-weight: bold;
-            font-size: 1rem;
-        }
-
-        /* ログインボタン（緑・中央） */
+        [data-testid="stSidebar"] label p { color: #ffffff !important; font-weight: bold; }
         .stLinkButton { display: flex; justify-content: center; padding: 20px 0; }
-        div.stLinkButton > a {
-            background-color: #06C755 !important;
-            color: white !important;
-            border-radius: 50px !important;
-            padding: 1.2rem 5rem !important;
-            font-size: 1.5rem !important;
-            font-weight: bold !important;
-            text-decoration: none !important;
-        }
-
-        /* タイトル */
+        div.stLinkButton > a { background-color: #06C755 !important; color: white !important; border-radius: 50px !important; padding: 1.2rem 5rem !important; font-size: 1.5rem !important; font-weight: bold !important; text-decoration: none !important; }
         .user-title { font-size: 1.2rem; color: #5d4037; margin-bottom: -5px; }
         .main-title { font-size: 3.5rem; font-weight: 900; color: #3e2723; line-height: 1.1; margin-bottom: 20px; }
-        
-        /* ヘッダー・フッターを隠す */
-        header {visibility: hidden;}
-        #MainMenu, footer {visibility: hidden;}
+        header {visibility: hidden;} #MainMenu, footer {visibility: hidden;}
         </style>
     """, unsafe_allow_html=True)
 
-# --- 基本設定 ---
+# --- 設定 ---
 st.set_page_config(page_title="在庫管理メモ", layout="wide")
 local_css()
 URL = "https://docs.google.com/spreadsheets/d/10Hhcn0qNOvGceSNWLxy3_IOCJTvS1i9xaarZirmUUdw/edit?usp=sharing"
 SHEET_NAME = "在庫データ"
 
-# --- 関数群 ---
+# --- LINE連携関数 ---
 def get_line_login_url():
     client_id = st.secrets["line"]["login_channel_id"]
     redirect_uri = "https://food-memo-app.streamlit.app"
@@ -108,23 +59,30 @@ def send_individual_line(to_id, message):
         url = "https://api.line.me/v2/bot/message/push"
         headers = {"Content-Type": "application/json", "Authorization": f"Bearer {st.secrets['line']['channel_access_token']}"}
         payload = {"to": to_id, "messages": [{"type": "text", "text": message}]}
-        return requests.post(url, headers=headers, json=payload).status_code
-    except: return None
+        requests.post(url, headers=headers, json=payload)
+    except: pass
 
-# --- 🔐 ログイン ---
-query_params = st.query_params
-if "code" not in query_params:
-    st.markdown("<br><br><br>", unsafe_allow_html=True)
-    st.markdown("<h1 style='text-align: center; color: #3e2723; font-size: 3.5rem;'>Stock Manager</h1>", unsafe_allow_html=True)
-    st.link_button("LINEでログイン", get_line_login_url())
-    st.stop()
-else:
-    try:
-        user_info = get_line_user_info(query_params["code"])
-        user_id, user_name = user_info.get("sub"), (user_info.get("displayName") or "User")
-    except: st.error("ログイン失敗"); st.stop()
+# --- 🔐 ログイン管理 ---
+if "user_id" not in st.session_state:
+    query_params = st.query_params
+    if "code" not in query_params:
+        st.markdown("<br><br><br>", unsafe_allow_html=True)
+        st.markdown("<h1 style='text-align: center; color: #3e2723; font-size: 3.5rem;'>Stock Manager</h1>", unsafe_allow_html=True)
+        st.link_button("LINEでログイン", get_line_login_url())
+        st.stop()
+    else:
+        try:
+            user_info = get_line_user_info(query_params["code"])
+            st.session_state.user_id = user_info.get("sub")
+            st.session_state.user_name = user_info.get("displayName") or user_info.get("name") or "User"
+        except:
+            st.error("ログイン情報が取得できません。再ログインしてください。")
+            st.stop()
 
-# --- 🍎 メイン ---
+user_id = st.session_state.user_id
+user_name = st.session_state.user_name
+
+# --- 🍎 メイン処理 ---
 st.markdown(f"<div class='user-title'>{user_name} 様</div><div class='main-title'>在庫リスト</div>", unsafe_allow_html=True)
 
 client = get_gspread_client()
@@ -139,7 +97,9 @@ if client:
 
     all_records = worksheet.get_all_records()
     all_df = pd.DataFrame(all_records) if all_records else pd.DataFrame(columns=["品名", "数量", "賞味期限", "保存場所", "種類", "LINE_ID"])
-    df = all_df[all_df["LINE_ID"] == user_id].copy()
+    
+    # LINE IDを文字列として比較して抽出
+    df = all_df[all_df["LINE_ID"].astype(str) == str(user_id)].copy()
 
     with st.sidebar:
         st.markdown("### 在庫を追加")
@@ -150,20 +110,22 @@ if client:
             c1 = st.selectbox("保存場所", ["冷蔵", "冷凍", "常温", "その他"])
             c2 = st.selectbox("種類", ["肉", "野菜", "麺", "飲み物", "その他"])
             if st.form_submit_button("リストに追加") and n:
-                match = (all_df['品名'] == n) & (all_df['賞味期限'] == e) & (all_df['保存場所'] == c1) & (all_df['種類'] == c2) & (all_df['LINE_ID'] == user_id)
+                match = (all_df['品名'] == n) & (all_df['賞味期限'] == e) & (all_df['保存場所'] == c1) & (all_df['種類'] == c2) & (all_df['LINE_ID'].astype(str) == str(user_id))
                 if match.any():
                     idx = all_df.index[match][0]
                     new_q = int(all_df.at[idx, '数量']) + a
                     worksheet.update_cell(int(idx) + 2, 2, int(new_q))
                 else:
-                    worksheet.append_row([n, int(a), e, c1, c2, user_id])
+                    # 💡 LINE_IDを確実に含めて追加
+                    worksheet.append_row([n, int(a), e, c1, c2, str(user_id)])
                 st.rerun()
 
     if not df.empty:
-        df_disp = df.copy().insert(0, "選択", False) or df.assign(選択=False)
+        df_disp = df.copy()
+        df_disp.insert(0, "選択", False)
         df_disp = df_disp[["選択", "品名", "数量", "賞味期限", "保存場所", "種類"]]
 
-        search = st.text_input("検索", placeholder="品名で絞り込み...")
+        search = st.text_input("検索")
         if search:
             df_disp = df_disp[df_disp.apply(lambda r: r.astype(str).str.contains(search, case=False).any(), axis=1)]
 
@@ -194,4 +156,5 @@ if client:
                 worksheet.clear()
                 worksheet.update('A1', [all_df.columns.tolist()] + new_all_df.values.tolist())
                 st.rerun()
-    else: st.info("データがありません")
+    else:
+        st.info("表示できる在庫データがありません。サイドバーから追加してください。")
