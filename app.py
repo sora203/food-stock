@@ -170,3 +170,4 @@ if client:
         st.data_editor(df, use_container_width=True, hide_index=True)
     else:
         st.info("データがありません。サイドバーから追加してください。")
+
