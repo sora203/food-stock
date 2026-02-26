@@ -2,4 +2,3 @@ streamlit
 gspread
 pandas
 requests
-streamlit-line-login
