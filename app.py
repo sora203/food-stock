@@ -1,5 +1,6 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
+import gspread
 import pandas as pd
 
 st.set_page_config(page_title="在庫管理アプリ", layout="wide")
@@ -7,8 +8,8 @@ st.title("🍎 食品在庫管理システム")
 
 URL = "https://docs.google.com/spreadsheets/d/10Hhcn0qNOvGceSNWLxy3_IOCJTvS1i9xaarZirmUUdw/edit?usp=sharing"
 
-# 💡 鍵をここに直接書く（Secretsの不具合を完全に無視する！）
-creds = {
+# 🔑 認証情報（これを直接使ってログインします）
+creds_dict = {
     "type": "service_account",
     "project_id": "my-food-stock-app",
     "private_key_id": "75d12b638a7f1bcbb74bdbe4a62bfabd586e1741",
@@ -17,8 +18,8 @@ creds = {
     "token_uri": "https://oauth2.google.com/token",
 }
 
-# 💡 ここが魔法の一行：credsの中身を使って接続！
-conn = st.connection("gsheets", type=GSheetsConnection, **creds)
+# 表示用の接続（これまでの方法）
+conn = st.connection("gsheets", type=GSheetsConnection)
 
 # --- 入力フォーム ---
 st.sidebar.header("新しい在庫の追加")
@@ -31,15 +32,23 @@ with st.sidebar.form("add_form"):
 
 if submit_button and name:
     try:
-        existing_data = conn.read(spreadsheet=URL, ttl=0)
-        new_row = pd.DataFrame([{"name": name, "amount": int(amount), "expiry_date": expiry_date.strftime('%Y/%m/%d'), "category": category}])
-        updated_df = pd.concat([existing_data, new_row], ignore_index=True)
-        conn.update(spreadsheet=URL, data=updated_df)
-        st.success(f"「{name}」を追加しました！")
+        # 直接スプレッドシートにアクセスして1行追加する
+        gc = gspread.service_account_from_dict(creds_dict)
+        sh = gc.open_by_url(URL)
+        worksheet = sh.get_worksheet(0) # 一番左のシート
+        
+        # 追加するデータ
+        new_row = [name, int(amount), expiry_date.strftime('%Y/%m/%d'), category]
+        worksheet.append_row(new_row)
+        
+        st.success(f"「{name}」をスプレッドシートに追加しました！")
         st.balloons()
     except Exception as e:
-        st.error(f"追加エラー: {e}")
+        st.error(f"追加エラーが発生しました: {e}")
 
-# --- 表示 ---
-df = conn.read(spreadsheet=URL, ttl=0)
-st.dataframe(df, use_container_width=True)
+# --- 一覧表示 ---
+try:
+    df = conn.read(spreadsheet=URL, ttl=0)
+    st.dataframe(df, use_container_width=True)
+except:
+    st.info("スプレッドシートを読み込んでいます...")
