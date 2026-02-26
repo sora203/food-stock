@@ -5,71 +5,57 @@ from datetime import datetime, date
 import requests
 import urllib.parse
 
-# --- 🎨 カスタムCSS（デザイン設定） ---
+# --- 🎨 カスタムCSS（背景デザイン強化版） ---
 def local_css():
     st.markdown("""
         <style>
-        /* 木目調の背景 */
+        /* アプリ全体の背景を木目調に強制固定 */
         .stApp {
-            background-image: url("https://images.unsplash.com/photo-1513115044-a6f95098906a?q=80&w=2000&auto=format&fit=crop");
-            background-size: cover;
+            background-image: url("https://www.toptal.com/designers/subtlepatterns/uploads/wood_pattern.png");
+            background-repeat: repeat;
             background-attachment: fixed;
-        }
-        
-        /* メインコンテンツの背景（読みやすくするために白透過） */
-        .block-container {
-            background-color: rgba(255, 255, 255, 0.9);
-            padding: 2rem;
-            border-radius: 20px;
-            margin-top: 2rem;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            background-size: auto;
         }
 
-        /* サイドバーのデザイン（薄いグレー） */
-        [data-testid="stSidebar"] {
-            background-color: rgba(240, 240, 240, 0.95) !important;
-            border-right: 1px solid #ddd;
+        /* コンテンツエリアを読みやすく白透過にする */
+        [data-testid="stAppViewBlockContainer"] {
+            background-color: rgba(255, 255, 255, 0.92);
+            padding: 3rem;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            margin-top: 2rem;
+            margin-bottom: 2rem;
         }
-        
+
+        /* サイドバー（薄いグレー） */
+        [data-testid="stSidebar"] {
+            background-color: rgba(245, 245, 245, 0.95) !important;
+        }
+
         /* ログインボタン（大きく・中央・緑） */
         .stLinkButton {
             display: flex;
             justify-content: center;
-            margin-top: 20px;
+            padding: 20px 0;
         }
         div.stLinkButton > a {
             background-color: #06C755 !important;
             color: white !important;
             border-radius: 50px !important;
-            padding: 1rem 4rem !important;
-            font-size: 1.5rem !important;
+            padding: 1.2rem 5rem !important;
+            font-size: 1.4rem !important;
             font-weight: bold !important;
             text-decoration: none !important;
-            box-shadow: 0 4px 15px rgba(6, 199, 85, 0.3);
-            transition: 0.3s;
-        }
-        div.stLinkButton > a:hover {
-            transform: scale(1.05);
-            box-shadow: 0 6px 20px rgba(6, 199, 85, 0.4);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2) !important;
         }
 
-        /* タイトルの改行デザイン */
-        .user-title {
-            font-size: 1.2rem;
-            color: #555;
-            margin-bottom: -10px;
-        }
-        .main-title {
-            font-size: 3rem;
-            font-weight: 900;
-            color: #333;
-            line-height: 1.1;
-        }
-
-        /* ボタンの丸み */
-        .stButton>button {
-            border-radius: 12px;
-        }
+        /* タイトルデザイン（改行風） */
+        .user-title { font-size: 1.3rem; color: #666; margin-bottom: -5px; }
+        .main-title { font-size: 3.5rem; font-weight: 800; color: #333; line-height: 1; margin-bottom: 20px; }
+        
+        /* 不要な要素の非表示 */
+        #MainMenu {visibility: hidden;}
+        footer {visibility: hidden;}
         </style>
     """, unsafe_allow_html=True)
 
@@ -212,3 +198,4 @@ if client:
                 st.rerun()
     else:
         st.info("データがありません")
+
