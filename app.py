@@ -12,22 +12,22 @@ URL = "https://docs.google.com/spreadsheets/d/10Hhcn0qNOvGceSNWLxy3_IOCJTvS1i9xa
 # --- LINEログイン用の関数 ---
 def get_line_login_url():
     client_id = st.secrets["line"]["login_channel_id"]
-    # 💡 コールバックURL（最後に / を入れない）
+    # 💡 2重変換を防ぐため、ここは単純な文字列結合にします
     redirect_uri = "https://food-memo-app.streamlit.app"
     
-    params = {
-        "response_type": "code",
-        "client_id": client_id,
-        "redirect_uri": redirect_uri,
-        "state": "random_string",
-        "scope": "profile openid"
-    }
-    # 💡 安全なURL形式に一括変換
-    url = f"https://access.line.me/oauth2/v2.1/authorize?{urllib.parse.urlencode(params)}"
+    url = (
+        f"https://access.line.me/oauth2/v2.1/authorize?"
+        f"response_type=code&"
+        f"client_id={client_id}&"
+        f"redirect_uri={redirect_uri}&"
+        f"state=random_string&"
+        f"scope=profile%20openid"
+    )
     return url
 
 def get_line_user_info(code):
-    token_url = "https://api.line.me/oauth2/v2.1/token"
+    # ここも 2重変換されないように、変な関数を通さず書く
+"redirect_uri": "https://food-memo-app.streamlit.app",
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
     data = {
         "grant_type": "authorization_code",
@@ -159,3 +159,4 @@ if client:
         st.data_editor(df, use_container_width=True, hide_index=True)
     else:
         st.info("データがありません。サイドバーから追加してください。")
+
