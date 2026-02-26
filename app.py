@@ -5,22 +5,85 @@ from datetime import datetime, date
 import requests
 import urllib.parse
 
+# --- 🎨 カスタムCSS（デザイン設定） ---
+def local_css():
+    st.markdown("""
+        <style>
+        /* 木目調の背景 */
+        .stApp {
+            background-image: url("https://images.unsplash.com/photo-1513115044-a6f95098906a?q=80&w=2000&auto=format&fit=crop");
+            background-size: cover;
+            background-attachment: fixed;
+        }
+        
+        /* メインコンテンツの背景（読みやすくするために白透過） */
+        .block-container {
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 2rem;
+            border-radius: 20px;
+            margin-top: 2rem;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        /* サイドバーのデザイン（薄いグレー） */
+        [data-testid="stSidebar"] {
+            background-color: rgba(240, 240, 240, 0.95) !important;
+            border-right: 1px solid #ddd;
+        }
+        
+        /* ログインボタン（大きく・中央・緑） */
+        .stLinkButton {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        div.stLinkButton > a {
+            background-color: #06C755 !important;
+            color: white !important;
+            border-radius: 50px !important;
+            padding: 1rem 4rem !important;
+            font-size: 1.5rem !important;
+            font-weight: bold !important;
+            text-decoration: none !important;
+            box-shadow: 0 4px 15px rgba(6, 199, 85, 0.3);
+            transition: 0.3s;
+        }
+        div.stLinkButton > a:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(6, 199, 85, 0.4);
+        }
+
+        /* タイトルの改行デザイン */
+        .user-title {
+            font-size: 1.2rem;
+            color: #555;
+            margin-bottom: -10px;
+        }
+        .main-title {
+            font-size: 3rem;
+            font-weight: 900;
+            color: #333;
+            line-height: 1.1;
+        }
+
+        /* ボタンの丸み */
+        .stButton>button {
+            border-radius: 12px;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
 # --- 設定 ---
-st.set_page_config(page_title="LINE在庫管理システム", layout="wide")
+st.set_page_config(page_title="在庫管理メモ", page_icon="📝", layout="wide")
+local_css()
 URL = "https://docs.google.com/spreadsheets/d/10Hhcn0qNOvGceSNWLxy3_IOCJTvS1i9xaarZirmUUdw/edit?usp=sharing"
 
 # --- LINEログイン用の関数 ---
 def get_line_login_url():
     client_id = st.secrets["line"]["login_channel_id"]
     redirect_uri = "https://food-memo-app.streamlit.app"
-    url = (
-        f"https://access.line.me/oauth2/v2.1/authorize?"
-        f"response_type=code&"
-        f"client_id={client_id}&"
-        f"redirect_uri={redirect_uri}&"
-        f"state=random_string&"
-        f"scope=profile%20openid"
-    )
+    url = (f"https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id={client_id}"
+           f"&redirect_uri={redirect_uri}&state=random_string&scope=profile%20openid")
     return url
 
 def get_line_user_info(code):
@@ -57,11 +120,14 @@ def send_individual_line(to_id, message):
         return requests.post(url, headers=headers, json=payload).status_code
     except: return None
 
-# --- 🔐 ログイン処理 ---
+# --- 🔐 ログイン画面 ---
 query_params = st.query_params
 if "code" not in query_params:
-    st.title("🔐 在庫管理ログイン")
-    st.link_button("LINEでログイン", get_line_login_url(), type="primary")
+    st.markdown("<br><br><br>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #333; font-size: 3rem;'>Stock Manager</h1>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #666; font-size: 1.2rem;'>毎日の食材管理を、もっと楽しく。</p>", unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.link_button("LINEでログイン", get_line_login_url())
     st.stop()
 else:
     try:
@@ -73,7 +139,10 @@ else:
         st.stop()
 
 # --- 🍎 メイン画面 ---
-st.title(f"🍱 {user_name} さんの在庫リスト")
+# タイトルの改行デザイン
+st.markdown(f"<div class='user-title'>{user_name} 様</div>", unsafe_allow_html=True)
+st.markdown("<div class='main-title'>在庫リスト</div>", unsafe_allow_html=True)
+st.markdown("<br>", unsafe_allow_html=True)
 
 client = get_gspread_client()
 if client:
@@ -86,70 +155,60 @@ if client:
         st.rerun()
 
     # --- サイドバー：追加 ---
-    with st.sidebar.form("add_form"):
-        st.subheader("➕ 在庫の追加")
-        name = st.text_input("品名")
-        amount = st.number_input("数量", min_value=1)
-        expiry = st.date_input("賞味期限")
-        cat1 = st.selectbox("保存場所", ["冷蔵", "冷凍", "常温", "その他"])
-        cat2 = st.selectbox("種類", ["肉", "野菜", "麺", "飲み物", "その他"])
-        if st.form_submit_button("追加") and name:
-            worksheet.append_row([name, int(amount), expiry.strftime('%Y/%m/%d'), cat1, cat2])
-            st.success("追加しました！")
-            st.rerun()
+    with st.sidebar:
+        st.markdown(f"### 在庫を追加")
+        with st.form("add_form", clear_on_submit=True):
+            name = st.text_input("品名", placeholder="例: たまご")
+            amount = st.number_input("数量", min_value=1, value=1)
+            expiry = st.date_input("賞味期限", value=date.today())
+            cat1 = st.selectbox("保存場所", ["冷蔵", "冷凍", "常温", "その他"])
+            cat2 = st.selectbox("種類", ["肉", "野菜", "麺", "飲み物", "その他"])
+            if st.form_submit_button("リストに追加"):
+                if name:
+                    worksheet.append_row([name, int(amount), expiry.strftime('%Y/%m/%d'), cat1, cat2])
+                    st.toast(f"{name}を追加しました")
+                    st.rerun()
 
-    # --- メインエリア：検索・表示・削除 ---
+    # --- メインエリア ---
     data = worksheet.get_all_records()
     if data:
         df = pd.DataFrame(data)
-        # 削除用のチェックボックス列を追加（初期値はFalse）
-        df.insert(0, "削除", False)
+        df.insert(0, "選択", False)
         
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            search_query = st.text_input("🔍 在庫を検索", placeholder="品名や場所で検索...")
+        search_query = st.text_input("検索", placeholder="品名や場所を入力...")
         
-        # 検索フィルタリング
         df_filtered = df.copy()
         if search_query:
-            mask = df_filtered.drop(columns=["削除"]).apply(lambda r: r.astype(str).str.contains(search_query, case=False).any(), axis=1)
+            mask = df_filtered.drop(columns=["選択"]).apply(lambda r: r.astype(str).str.contains(search_query, case=False).any(), axis=1)
             df_filtered = df_filtered[mask]
 
-        # 期限通知ボタン
-        if st.button("🔔 期限が近い在庫をLINEに通知"):
-            today = date.today()
-            alerts = [f"・{r['品名']} ({r['賞味期限']})" for _, r in df.iterrows() if (datetime.strptime(str(r["賞味期限"]), '%Y/%m/%d').date() - today).days <= 3]
-            if alerts:
-                msg = f"\n【{user_name}さんの期限間近リスト】\n" + "\n".join(alerts) + "\n早めに使いましょう！"
-                send_individual_line(user_id, msg); st.success("LINEに通知しました！")
-            else: st.info("期限が近いものはありません。")
+        col_btn1, col_btn2 = st.columns([1, 1])
+        with col_btn1:
+            if st.button("期限間近を通知"):
+                today = date.today()
+                alerts = [f"・{r['品名']} ({r['賞味期限']})" for _, r in df.iterrows() if (datetime.strptime(str(r["賞味期限"]), '%Y/%m/%d').date() - today).days <= 3]
+                if alerts:
+                    msg = f"\n【期限間近リスト】\n" + "\n".join(alerts) + "\n早めに使いましょう！"
+                    send_individual_line(user_id, msg); st.success("通知しました")
+                else: st.info("期限が近いものはありません")
+        
+        with col_btn2:
+            delete_btn = st.button("選択項目を削除", type="primary")
 
-        # 💡 在庫一覧（編集・選択モード）
-        st.write("---")
         edited_df = st.data_editor(
             df_filtered.drop(columns=["LINE_ID"], errors='ignore'),
             use_container_width=True,
             hide_index=True,
-            column_config={"削除": st.column_config.CheckboxColumn(help="削除したい項目にチェック")}
+            column_config={"選択": st.column_config.CheckboxColumn()}
         )
 
-        # 🗑️ 削除実行ボタン
-        if st.button("🗑️ 選択した在庫を削除する", type="secondary"):
-            # チェックが入った行の「品名」を取得（完全一致で削除するため）
-            delete_names = edited_df[edited_df["削除"] == True]["品名"].tolist()
+        if delete_btn:
+            delete_names = edited_df[edited_df["選択"] == True]["品名"].tolist()
             if delete_names:
-                # スプレッドシートを更新（逆順に削除しないと行番号がズレるため一工夫）
-                # 今回はシンプルに、削除対象以外のデータを上書きする方法をとります
-                new_data = [list(data[0].keys())] # ヘッダー
+                new_data = [list(data[0].keys())]
                 keep_rows = [r for r in data if r["品名"] not in delete_names]
-                for r in keep_rows:
-                    new_data.append(list(r.values()))
-                
-                worksheet.clear()
-                worksheet.update('A1', new_data)
-                st.warning(f"{len(delete_names)}件の在庫を削除しました。")
+                for r in keep_rows: new_data.append(list(r.values()))
+                worksheet.clear(); worksheet.update('A1', new_data)
                 st.rerun()
-            else:
-                st.toast("削除する項目にチェックを入れてください")
     else:
-        st.info("データがありません。")
+        st.info("データがありません")
