@@ -21,7 +21,7 @@ def get_gspread_client():
             "project_id": "my-food-stock-app",
             "private_key": fixed_key,
             "client_email": st.secrets["connections"]["gsheets"]["client_email"],
-            "token_uri": "https://oauth2.google.com/token",
+            "token_uri": "https://www.googleapis.com/oauth2/v4/token",
         }
         # st.connectionを通さず、gspreadで直接ログイン
         return gspread.service_account_from_dict(creds)
@@ -63,3 +63,4 @@ if client:
 
     except Exception as e:
         st.error(f"スプレッドシートの操作エラー: {e}")
+
