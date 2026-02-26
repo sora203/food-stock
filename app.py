@@ -90,7 +90,7 @@ else:
         st.stop()
 
 # --- 🍎 メイン画面 ---
-st.title(f"🍱 {user_name} さんの在庫リスト")
+st.title(f"🍱 在庫リスト")
 
 client = get_gspread_client()
 if client:
@@ -162,7 +162,7 @@ if client:
                     except: continue
                 
                 if alerts:
-                    msg = f"\n【{user_name}さんの期限間近リスト】\n" + "\n".join(alerts) + "\n早めに使いましょう！"
+                    msg = f"\n【期限間近リスト】\n" + "\n".join(alerts) + "\n早めに使いましょう！"
                     if send_individual_line(user_id, msg) == 200:
                         st.success("LINEに通知を送信しました！")
                     else:
@@ -177,3 +177,4 @@ if client:
 
     except Exception as e:
         st.error(f"スプレッドシートが開けません: {e}")
+
