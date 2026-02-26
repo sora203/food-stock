@@ -7,21 +7,28 @@ st.title("🍎 食品在庫管理システム")
 
 URL = "https://docs.google.com/spreadsheets/d/10Hhcn0qNOvGceSNWLxy3_IOCJTvS1i9xaarZirmUUdw/edit?usp=sharing"
 
-# 🔑 鍵の形式をプログラム側で強制的に整える
+# 🔑 認証情報を整理して接続する
 try:
-    raw_key = st.secrets["connections"]["gsheets"]["private_key"]
-    # 改行が \n という文字になってしまっている場合に備えて変換
-    fixed_key = raw_key.replace("\\n", "\n")
+    # Secretsから生データを取得
+    raw_secrets = st.secrets["connections"]["gsheets"]
     
-    # 接続設定を上書きして作成
-    conn = st.connection(
-        "gsheets",
-        type=GSheetsConnection,
-        client_email=st.secrets["connections"]["gsheets"]["client_email"],
-        private_key=fixed_key
-    )
+    # 鍵の中身をクリーニング（改行トラブル対策）
+    fixed_key = raw_secrets["private_key"].replace("\\n", "\n")
+    
+    # ライブラリが受け付ける「正式な形式」の辞書を作成
+    credentials_info = {
+        "type": "service_account",
+        "project_id": "my-food-stock-app",
+        "private_key": fixed_key,
+        "client_email": raw_secrets["client_email"],
+        "token_uri": "https://oauth2.google.com/token",
+    }
+    
+    # 💡 修正：辞書をそのまま渡すのではなく、ライブラリの内部仕様に合わせて接続
+    conn = st.connection("gsheets", type=GSheetsConnection, credentials=credentials_info)
+
 except Exception as e:
-    st.error(f"認証情報の準備に失敗しました: {e}")
+    st.error(f"接続の準備に失敗しました: {e}")
     st.stop()
 
 # --- 入力フォーム ---
