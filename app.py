@@ -10,6 +10,35 @@ st.set_page_config(page_title="プロ在庫管理", layout="wide")
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
+# --- 🔑 パスワード認証部分の修正案 ---
+if not st.session_state.authenticated:
+    st.title("🔐 在庫管理ログイン")
+    password = st.text_input("アクセスパスワード", type="password")
+    
+    col_login, col_help = st.columns(2)
+    
+    with col_login:
+        if st.button("ログイン"):
+            if password == "ADMIN_MASTER_KEY": # 👈 あなただけが知っている救済パスワード
+                st.session_state.show_rescue = True
+            elif password:
+                st.session_state.authenticated = True
+                st.session_state.current_pw = password
+                st.rerun()
+    
+    # 🆘 救済画面の表示
+    if st.session_state.get("show_rescue"):
+        st.warning("⚠️ 救済モード：現在作成されているリスト（パスワード）一覧")
+        client = get_gspread_client()
+        if client:
+            sh = client.open_by_url(URL)
+            all_sheets = [s.title for s in sh.worksheets()]
+            st.write(all_sheets) # シート名（＝パスワード）をズラッと表示
+            if st.button("閉じる"):
+                st.session_state.show_rescue = False
+                st.rerun()
+    st.stop()
+
 if not st.session_state.authenticated:
     st.title("🔐 在庫管理ログイン")
     password = st.text_input("アクセスパスワード", type="password")
@@ -134,3 +163,4 @@ if client:
 
     except Exception as e:
         st.error(f"エラー: {e}")
+
