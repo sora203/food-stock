@@ -81,7 +81,7 @@ if client:
         with col_qr:
             # 💡 ここにあなたのLINE BOTのQRコード画像URLを貼ってください
             # LINE DevelopersのMessaging API設定タブにあるQRコードのURLをコピーして貼り付けます
-            st.image("https://qr-official.line.me/gs/M_xxxxxxxx.png", caption="1. 友達追加") 
+            st.image("https://qr-official.line.me/gs/M_https://qr-official.line.me/sid/L/844jqkri.png", caption="1. 友達追加") 
         
         with col_inst:
             st.write("2. あなたの『LINEユーザーID』を入力してください。")
@@ -143,3 +143,4 @@ if client:
 
     else:
         st.info("データがありません。サイドバーから追加してください。")
+
