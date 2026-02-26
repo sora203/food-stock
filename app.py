@@ -12,10 +12,18 @@ URL = "https://docs.google.com/spreadsheets/d/10Hhcn0qNOvGceSNWLxy3_IOCJTvS1i9xa
 # --- LINEログイン用の自作関数 ---
 def get_line_login_url():
     client_id = st.secrets["line"]["login_channel_id"]
-    # ここを直接自分のURLにする（最後に / は入れない）
-    redirect_uri = "https://food-memo-app.streamlit.app" 
-    state = "random_string"
-    url = f"https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id={client_id}&redirect_uri={urllib.parse.quote(redirect_uri)}&state={state}&scope=profile%20openid"
+    # 💡 変換ミスを防ぐため、最初から安全な文字列として定義します
+    redirect_uri = "https://food-memo-app.streamlit.app"
+    
+    # 💡 urlencodeを使って、LINEが認める完璧な形式に変換します
+    params = {
+        "response_type": "code",
+        "client_id": client_id,
+        "redirect_uri": redirect_uri,
+        "state": "random_string",
+        "scope": "profile openid"
+    }
+    url = f"https://access.line.me/oauth2/v2.1/authorize?{urllib.parse.urlencode(params)}"
     return url
 
 def get_line_user_info(code):
@@ -58,6 +66,7 @@ if "code" not in query_params:
 # --- 以降、メインの在庫管理プログラム（前回のものと同じ） ---
 st.title(f"🍎 {user_name} さんの在庫リスト")
 # (ここから下のスプレッドシート処理などはそのまま継続)
+
 
 
 
