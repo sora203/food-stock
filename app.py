@@ -12,7 +12,7 @@ URL = "https://docs.google.com/spreadsheets/d/10Hhcn0qNOvGceSNWLxy3_IOCJTvS1i9xa
 # --- LINEログイン用の関数 ---
 def get_line_login_url():
     client_id = st.secrets["line"]["login_channel_id"]
-    # 💡 コールバックURL（LINE Developersの設定と完全に一致させること）
+    # 💡 コールバックURL（最後に / を入れない）
     redirect_uri = "https://food-memo-app.streamlit.app"
     
     params = {
@@ -75,20 +75,9 @@ if "code" not in query_params:
     st.title("🔐 在庫管理ログイン")
     st.write("ボタンを押してLINEでログインしてください。")
     login_url = get_line_login_url()
-    # 💡 デザインされたログインボタン
-    st.markdown(f'''
-        <a href="{login_url}" target="_self" style="
-            background-color: #00B900; 
-            color: white; 
-            padding: 12px 24px; 
-            text-decoration: none; 
-            border-radius: 8px; 
-            font-weight: bold; 
-            display: inline-block;
-            margin-top: 20px;">
-            LINEでログイン
-        </a>
-    ''', unsafe_allow_html=True)
+    
+    # 💡 st.link_button を使うことで、ブラウザのセキュリティブロックを回避します
+    st.link_button("LINEでログイン", login_url, type="primary")
     st.stop()
 else:
     # ログイン後の処理
@@ -98,7 +87,7 @@ else:
         user_id = user_info.get("sub")
         user_name = user_info.get("name")
     except Exception as e:
-        st.error("ログインに失敗しました。URL設定を確認してください。")
+        st.error("ログインに失敗しました。LINE設定の『コールバックURL』が一致しているか確認してください。")
         st.stop()
 
 # --- 🍎 メイン画面 ---
@@ -147,7 +136,7 @@ if client:
         if "LINE_ID" in df.columns: df = df.drop(columns=["LINE_ID"])
 
         # 🔔 通知ボタン
-        if st.button("期限が近い在庫をLINEに通知する", type="primary"):
+        if st.button("期限が近い在庫をLINEに通知する"):
             today = date.today()
             alerts = []
             for _, r in df.iterrows():
@@ -162,7 +151,7 @@ if client:
                 if send_individual_line(user_id, msg) == 200:
                     st.success("LINEに通知を送信しました！")
                 else:
-                    st.error("通知の送信に失敗しました。Messaging APIの設定を確認してください。")
+                    st.error("通知の送信に失敗しました。")
             else:
                 st.info("3日以内に期限が切れるものはありません。")
 
@@ -170,4 +159,3 @@ if client:
         st.data_editor(df, use_container_width=True, hide_index=True)
     else:
         st.info("データがありません。サイドバーから追加してください。")
-
