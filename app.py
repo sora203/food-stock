@@ -8,7 +8,7 @@ st.title("🍎 食品在庫管理システム")
 
 URL = "https://docs.google.com/spreadsheets/d/10Hhcn0qNOvGceSNWLxy3_IOCJTvS1i9xaarZirmUUdw/edit?usp=sharing"
 
-# 🔑 認証情報（これを直接使ってログインします）
+# 🔑 認証情報（ここをそっくり入れ替え）
 creds_dict = {
     "type": "service_account",
     "project_id": "my-food-stock-app",
@@ -52,3 +52,4 @@ try:
     st.dataframe(df, use_container_width=True)
 except:
     st.info("スプレッドシートを読み込んでいます...")
+
