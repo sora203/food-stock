@@ -100,12 +100,21 @@ if client:
     try:
         worksheet = sh.worksheet(sheet_name)
     except:
-        # シートがない場合は新規作成
-        worksheet = sh.add_worksheet(title=sheet_name, rows="100", cols="20")
+        # シートがない場合は、十分なサイズで新規作成
+        worksheet = sh.add_worksheet(title=sheet_name, rows="1000", cols="10")
+        # 最初の1行目（ヘッダー）をセット
         worksheet.append_row(["品名", "数量", "賞味期限", "保存場所", "種類", "LINE_ID"])
-        worksheet.update_cell(2, 6, user_id)
+        # 作成直後のエラーを防ぐため少し待つ（または再読み込み）
+        st.info("新しいシートを作成しました。準備しています...")
         st.rerun()
 
+    # LINE_IDを安全に書き込む（F列の2行目）
+    # データが空の場合でもエラーにならないようにする
+    try:
+        worksheet.update_acell('F2', user_id)
+    except Exception as e:
+        # 書き込み失敗しても止まらないようにパスする
+        pass
     # IDを常に最新にする（通知用）
     worksheet.update_cell(2, 6, user_id)
 
@@ -158,5 +167,6 @@ if client:
         st.data_editor(df, use_container_width=True, hide_index=True)
     else:
         st.info("データがありません。サイドバーから追加してください。")
+
 
 
