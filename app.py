@@ -37,20 +37,27 @@ def get_line_user_info(code):
     return user_info
 
 # --- 🔐 ログイン処理 ---
+# --- 🔐 ログイン処理（デバッグ版） ---
 query_params = st.query_params
 if "code" not in query_params:
     st.title("🔐 在庫管理ログイン")
+    
+    # 1. プログラムが作ったURLを取得
     login_url = get_line_login_url()
+    
+    # 2. 画面にURLをそのまま表示（これで中身をチェックできます）
+    st.warning("⚠️ デバッグ情報：LINEに送信するURLを確認してください")
+    st.code(login_url)
+    
+    st.info("上のURLの中にある 'redirect_uri=' の後の部分が、LINE Developersの設定と1文字でも違うとエラーになります。")
+
+    # 3. ログインボタン
     st.markdown(f'<a href="{login_url}" target="_self" style="background-color: #00B900; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; font-weight: bold;">LINEでログイン</a>', unsafe_allow_html=True)
     st.stop()
-else:
-    code = query_params["code"]
-    user_info = get_line_user_info(code)
-    user_id = user_info.get("sub")
-    user_name = user_info.get("name")
 
 # --- 以降、メインの在庫管理プログラム（前回のものと同じ） ---
 st.title(f"🍎 {user_name} さんの在庫リスト")
 # (ここから下のスプレッドシート処理などはそのまま継続)
+
 
 
