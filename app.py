@@ -38,7 +38,7 @@ if not st.session_state.authenticated:
     with col_login:
         if st.button("ログイン"):
             # 💡 ADMIN_MASTER_KEY を自分の好きな秘密の言葉に変えてください！
-            if password == "admin1234": 
+            if password == "masterpass": 
                 st.session_state.show_rescue = True
             elif password:
                 st.session_state.authenticated = True
@@ -148,3 +148,4 @@ if client:
 
     except Exception as e:
         st.error(f"エラー: {e}")
+
