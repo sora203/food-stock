@@ -5,11 +5,24 @@ import pandas as pd
 st.set_page_config(page_title="在庫管理アプリ", layout="wide")
 st.title("🍎 食品在庫管理システム")
 
-# スプレッドシートのURL
 URL = "https://docs.google.com/spreadsheets/d/10Hhcn0qNOvGceSNWLxy3_IOCJTvS1i9xaarZirmUUdw/edit?usp=sharing"
 
-# 💡 修正：Secretsの設定（[connections.gsheets]）を自動で読み込む
-conn = st.connection("gsheets", type=GSheetsConnection)
+# 🔑 鍵の形式をプログラム側で強制的に整える
+try:
+    raw_key = st.secrets["connections"]["gsheets"]["private_key"]
+    # 改行が \n という文字になってしまっている場合に備えて変換
+    fixed_key = raw_key.replace("\\n", "\n")
+    
+    # 接続設定を上書きして作成
+    conn = st.connection(
+        "gsheets",
+        type=GSheetsConnection,
+        client_email=st.secrets["connections"]["gsheets"]["client_email"],
+        private_key=fixed_key
+    )
+except Exception as e:
+    st.error(f"認証情報の準備に失敗しました: {e}")
+    st.stop()
 
 # --- 入力フォーム ---
 st.sidebar.header("新しい在庫の追加")
@@ -22,7 +35,6 @@ with st.sidebar.form("add_form"):
 
 if submit_button and name:
     try:
-        # 既存データを読み込んで追加
         existing_data = conn.read(spreadsheet=URL, ttl=0)
         new_row = pd.DataFrame([{
             "name": name,
@@ -31,8 +43,6 @@ if submit_button and name:
             "category": category
         }])
         updated_df = pd.concat([existing_data, new_row], ignore_index=True)
-        
-        # 書き込み実行
         conn.update(spreadsheet=URL, data=updated_df)
         st.success(f"「{name}」を追加しました！")
         st.balloons()
