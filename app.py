@@ -6,7 +6,7 @@ st.set_page_config(page_title="在庫管理アプリ", layout="wide")
 st.title("🍎 食品在庫管理システム")
 
 # 接続設定
-conn = st.connection("gsheets", type=GSheetsConnection)
+conn = st.connection("gsheets", type=GSheetsConnection, **st.secrets)
 url = "https://docs.google.com/spreadsheets/d/10Hhcn0qNOvGceSNWLxy3_IOCJTvS1i9xaarZirmUUdw/edit?usp=sharing"
 
 # --- 入力フォーム ---
@@ -47,5 +47,6 @@ if submit_button:
 st.subheader("現在の在庫一覧")
 df = conn.read(spreadsheet=url, ttl=0)
 st.dataframe(df, use_container_width=True)
+
 
 
