@@ -8,12 +8,16 @@ st.title("🍎 食品在庫管理システム")
 # スプレッドシートのURL
 URL = "https://docs.google.com/spreadsheets/d/10Hhcn0qNOvGceSNWLxy3_IOCJTvS1i9xaarZirmUUdw/edit?usp=sharing"
 
-# 💡 究極の解決策：Secretsを使わず、ここに直接設定を書く！
-creds = {
-    "type": "service_account",
-    "project_id": "my-food-stock-app",
-    "private_key_id": "75d12b638a7f1bcbb74bdbe4a62bfabd586e1741",
-    "private_key": """-----BEGIN PRIVATE KEY-----
+# 💡 修正ポイント：認証情報を一つずつ確実に渡す
+try:
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    
+    # 手動で認証情報をセットする（Secretsを使わない！）
+    conn._instance.client._credentials_info = {
+        "type": "service_account",
+        "project_id": "my-food-stock-app",
+        "private_key_id": "75d12b638a7f1bcbb74bdbe4a62bfabd586e1741",
+        "private_key": """-----BEGIN PRIVATE KEY-----
 MIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQC7pEdlh6ySjEmN
 Zcs6SbvMpEI43WAJX7DCss3NYoTnDNW5uDth919R64pBW8tNbzXB4KzPmfLoZWDT
 I4Il1+1SXCk8LldQwkGJ7wPMgPSSg4hKKFA+EA8m5Hldy0pk2ESSKSlYFGX3+pqN
@@ -41,11 +45,11 @@ GoX5JbusjZMVGN0FwSZyiyJW3jSa04N6D+OZt+yReqT7LdZpdvHHKvsEzHtItJjf
 GTZsC0AQpi8dgKSqhnz0MQGKxA6d7bsjbfqBhrJe+dliGVfKSJUoPbJ5PB4HcAXh
 AzUorgOKgXEaBUp7VBxhpiWK
 -----END PRIVATE KEY-----""",
-    "client_email": "foodstock-bot@my-food-stock-app.iam.gserviceaccount.com",
-}
-
-# 接続の作成
-conn = st.connection("gsheets", type=GSheetsConnection, **creds)
+        "client_email": "foodstock-bot@my-food-stock-app.iam.gserviceaccount.com",
+        "token_uri": "https://oauth2.google.com/token",
+    }
+except Exception as e:
+    st.error(f"初期設定でエラーが発生しました: {e}")
 
 # --- 入力フォーム ---
 st.sidebar.header("新しい在庫の追加")
@@ -57,21 +61,28 @@ with st.sidebar.form("add_form"):
     submit_button = st.form_submit_button("在庫を追加する")
 
 if submit_button and name:
-    # 既存データを読み込んで追加
-    existing_data = conn.read(spreadsheet=URL, ttl=0)
-    new_row = pd.DataFrame([{
-        "name": name,
-        "amount": amount,
-        "expiry_date": expiry_date.strftime('%Y/%m/%d'),
-        "category": category
-    }])
-    updated_df = pd.concat([existing_data, new_row], ignore_index=True)
-    
-    # 書き込み実行
-    conn.update(spreadsheet=URL, data=updated_df)
-    st.success(f"「{name}」を追加しました！")
-    st.balloons()
+    try:
+        # 既存データを読み込んで追加
+        existing_data = conn.read(spreadsheet=URL, ttl=0)
+        new_row = pd.DataFrame([{
+            "name": name,
+            "amount": int(amount),
+            "expiry_date": expiry_date.strftime('%Y/%m/%d'),
+            "category": category
+        }])
+        updated_df = pd.concat([existing_data, new_row], ignore_index=True)
+        
+        # 書き込み実行
+        conn.update(spreadsheet=URL, data=updated_df)
+        st.success(f"「{name}」を追加しました！")
+        st.balloons()
+    except Exception as e:
+        st.error(f"データの追加中にエラーが発生しました: {e}")
 
-# --- 表示 ---
-df = conn.read(spreadsheet=URL, ttl=0)
-st.dataframe(df, use_container_width=True)
+# --- 一覧表示 ---
+try:
+    df = conn.read(spreadsheet=URL, ttl=0)
+    st.subheader("現在の在庫一覧")
+    st.dataframe(df, use_container_width=True)
+except Exception as e:
+    st.error(f"一覧の表示に失敗しました: {e}")
