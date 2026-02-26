@@ -144,17 +144,31 @@ if client:
                 except Exception as e:
                     st.error(f"追加に失敗しました。権限を確認してください: {e}")
 
-        # --- メインエリア：在庫表示 ---
+        # --- メインエリア：検索と在庫表示 ---
         data = worksheet.get_all_records()
         if data:
             df = pd.DataFrame(data)
-            if "LINE_ID" in df.columns: df = df.drop(columns=["LINE_ID"])
+            
+            # 💡 検索機能の追加
+            st.subheader("🔍 在庫を検索")
+            search_query = st.text_input("品名や種類で検索...", placeholder="例: 肉, 冷蔵")
+
+            # 検索ワードがある場合のみフィルタリング
+            if search_query:
+                # 全ての列を対象に検索（大文字小文字を区別しない）
+                mask = df.apply(lambda row: row.astype(str).str.contains(search_query, case=False).any(), axis=1)
+                df_display = df[mask]
+            else:
+                df_display = df
+
+            if "LINE_ID" in df_display.columns: 
+                df_display = df_display.drop(columns=["LINE_ID"])
 
             # 🔔 通知ボタン
             if st.button("期限が近い在庫をLINEに通知する"):
                 today = date.today()
                 alerts = []
-                for _, r in df.iterrows():
+                for _, r in df.iterrows(): # 通知対象は検索結果に関わらず全在庫から
                     try:
                         d = datetime.strptime(str(r["賞味期限"]), '%Y/%m/%d').date()
                         if (d - today).days <= 3:
@@ -162,7 +176,7 @@ if client:
                     except: continue
                 
                 if alerts:
-                    msg = f"\n【期限間近リスト】\n" + "\n".join(alerts) + "\n早めに使いましょう！"
+                    msg = f"\n【{user_name}さんの期限間近リスト】\n" + "\n".join(alerts) + "\n早めに使いましょう！"
                     if send_individual_line(user_id, msg) == 200:
                         st.success("LINEに通知を送信しました！")
                     else:
@@ -171,10 +185,12 @@ if client:
                     st.info("3日以内に期限が切れるものはありません。")
 
             st.subheader("📦 在庫一覧")
-            st.data_editor(df, use_container_width=True, hide_index=True)
+            # 💡 検索後の結果を表示
+            st.data_editor(df_display, use_container_width=True, hide_index=True)
         else:
             st.info("まだ在庫データがありません。サイドバーから追加してください。")
 
     except Exception as e:
         st.error(f"スプレッドシートが開けません: {e}")
+
 
