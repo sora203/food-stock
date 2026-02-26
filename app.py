@@ -6,7 +6,7 @@ from datetime import datetime, date
 # --- モード対応とレスポンシブ設定 ---
 st.set_page_config(page_title="プロ在庫管理", layout="wide")
 
-# --- Google接続設定 (救済モードでも使うため先頭に配置) ---
+# --- Google接続設定 ---
 URL = "https://docs.google.com/spreadsheets/d/10Hhcn0qNOvGceSNWLxy3_IOCJTvS1i9xaarZirmUUdw/edit?usp=sharing"
 
 def get_gspread_client():
@@ -37,8 +37,8 @@ if not st.session_state.authenticated:
     
     with col_login:
         if st.button("ログイン"):
-            # 💡 ADMIN_MASTER_KEY を自分の好きな秘密の言葉に変えてください！
-            if password == "masterpass": 
+            # 💡 あなただけの救済パスワードを設定してください
+            if password == "admin1234": 
                 st.session_state.show_rescue = True
             elif password:
                 st.session_state.authenticated = True
@@ -47,19 +47,17 @@ if not st.session_state.authenticated:
             else:
                 st.error("パスワードを入力してください")
     
-    # 🆘 救済画面（マスターパスワードが一致した時だけ表示）
     if st.session_state.get("show_rescue"):
-        st.warning("⚠️ 救済モード：現在作成されているリスト（パスワード）一覧")
+        st.warning("⚠️ 救済モード：登録済みパスワード（シート名）一覧")
         client = get_gspread_client()
         if client:
             sh = client.open_by_url(URL)
-            all_sheets = [s.title for s in sh.worksheets()]
-            st.write("登録済みのパスワード一覧:")
-            st.code(all_sheets) # コピーしやすいようにコード形式で表示
+            all_sheets = [s.title for s in sh.worksheets() if s.title != "admin_log"]
+            st.code(all_sheets)
             if st.button("閉じる"):
                 st.session_state.show_rescue = False
                 st.rerun()
-    st.stop() # ログインしていない場合はここで止める
+    st.stop()
 
 # --- ログイン後のメイン処理 ---
 st.title(f"🍎 {st.session_state.current_pw} のリスト")
@@ -73,12 +71,25 @@ if client:
     try:
         sh = client.open_by_url(URL)
         sheet_name = st.session_state.current_pw
+        
+        # --- シートの取得または新規作成（ログ記録付き） ---
         try:
             worksheet = sh.worksheet(sheet_name)
         except gspread.exceptions.WorksheetNotFound:
+            # 1. 新しい在庫シートを作成
             worksheet = sh.add_worksheet(title=sheet_name, rows="100", cols="20")
             worksheet.append_row(["品名", "数量", "賞味期限", "保存場所", "種類"])
-            st.info(f"新規作成しました。")
+            
+            # 2. 📝 管理用ログシートに記録（案1の機能）
+            try:
+                log_sheet = sh.worksheet("admin_log")
+            except gspread.exceptions.WorksheetNotFound:
+                log_sheet = sh.add_worksheet(title="admin_log", rows="100", cols="2")
+                log_sheet.append_row(["作成日時", "使用パスワード"])
+            
+            now = datetime.now().strftime('%Y/%m/%d %H:%M:%S')
+            log_sheet.append_row([now, sheet_name])
+            st.info(f"新しいリスト「{sheet_name}」を作成しました。ログに記録しました。")
 
         # カテゴリー設定
         STORAGE_CATS = ["冷蔵", "冷凍", "常温", "その他"]
@@ -105,11 +116,10 @@ if client:
             st.success("追加完了！")
             st.rerun()
 
-        # データ表示
+        # データ表示（賞味期限アラート付き）
         data = worksheet.get_all_records()
         if data:
             df = pd.DataFrame(data)
-            
             if filter_storage:
                 df = df[df["保存場所"].isin(filter_storage)]
             if filter_type:
@@ -141,11 +151,10 @@ if client:
                 if selected_indices:
                     for index in sorted(selected_indices, reverse=True):
                         worksheet.delete_rows(index + 2)
-                    st.success("削除しました！")
+                    st.success("削除完了！")
                     st.rerun()
         else:
-            st.info("データがありません。")
+            st.info("データがまだありません。")
 
     except Exception as e:
         st.error(f"エラー: {e}")
-
