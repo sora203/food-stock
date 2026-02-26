@@ -41,7 +41,7 @@ def local_css():
             color: white !important;
             border-radius: 50px !important;
             padding: 1.2rem 5rem !important;
-            font-size: 1.4rem !important;
+            font-size: 1.5rem !important;
             font-weight: bold !important;
             text-decoration: none !important;
         }
@@ -51,12 +51,13 @@ def local_css():
         </style>
     """, unsafe_allow_html=True)
 
-# --- 基本設定 ---
+# --- 設定 ---
 st.set_page_config(page_title="在庫管理メモ", layout="wide")
 local_css()
 URL = "https://docs.google.com/spreadsheets/d/10Hhcn0qNOvGceSNWLxy3_IOCJTvS1i9xaarZirmUUdw/edit?usp=sharing"
+SHEET_NAME = "在庫データ"  # 💡 全員共通のシート名
 
-# --- 認証系関数 ---
+# --- 関数群 ---
 def get_line_login_url():
     client_id = st.secrets["line"]["login_channel_id"]
     redirect_uri = "https://food-memo-app.streamlit.app"
@@ -65,27 +66,19 @@ def get_line_login_url():
 
 def get_line_user_info(code):
     token_url = "https://api.line.me/oauth2/v2.1/token"
-    data = {
-        "grant_type": "authorization_code", "code": code,
-        "redirect_uri": "https://food-memo-app.streamlit.app",
-        "client_id": st.secrets["line"]["login_channel_id"],
-        "client_secret": st.secrets["line"]["login_channel_secret"]
-    }
+    data = {"grant_type": "authorization_code", "code": code, "redirect_uri": "https://food-memo-app.streamlit.app",
+            "client_id": st.secrets["line"]["login_channel_id"], "client_secret": st.secrets["line"]["login_channel_secret"]}
     res = requests.post(token_url, data=data).json()
     id_token = res.get("id_token")
     payload = {"id_token": id_token, "client_id": st.secrets["line"]["login_channel_id"]}
     return requests.post("https://api.line.me/oauth2/v2.1/verify", data=payload).json()
 
-@st.cache_resource(ttl=600) # 10分間クライアントをキャッシュして再接続を減らす
+@st.cache_resource(ttl=600)
 def get_gspread_client():
     try:
-        raw_key = st.secrets["connections"]["gsheets"]["private_key"]
-        fixed_key = raw_key.replace("\\n", "\n").strip()
-        creds = {
-            "type": "service_account", "project_id": "my-food-stock-app",
-            "private_key": fixed_key, "client_email": st.secrets["connections"]["gsheets"]["client_email"],
-            "token_uri": "https://www.googleapis.com/oauth2/v4/token",
-        }
+        raw_key = st.secrets["connections"]["gsheets"]["private_key"].replace("\\n", "\n").strip()
+        creds = {"type": "service_account", "project_id": "my-food-stock-app", "private_key": raw_key,
+                 "client_email": st.secrets["connections"]["gsheets"]["client_email"], "token_uri": "https://www.googleapis.com/oauth2/v4/token"}
         return gspread.service_account_from_dict(creds)
     except: return None
 
@@ -97,7 +90,7 @@ def send_individual_line(to_id, message):
         return requests.post(url, headers=headers, json=payload).status_code
     except: return None
 
-# --- 🔐 ログイン判定 ---
+# --- 🔐 ログイン ---
 query_params = st.query_params
 if "code" not in query_params:
     st.markdown("<br><br><br>", unsafe_allow_html=True)
@@ -107,105 +100,85 @@ if "code" not in query_params:
 else:
     try:
         user_info = get_line_user_info(query_params["code"])
-        user_id = user_info.get("sub")
-        user_name = user_info.get("displayName") or user_info.get("name") or "User"
-    except:
-        st.error("ログイン失敗。再読み込みしてください。")
-        st.stop()
+        user_id, user_name = user_info.get("sub"), (user_info.get("displayName") or "User")
+    except: st.error("ログイン失敗"); st.stop()
 
-# --- 🍎 メイン処理 ---
+# --- 🍎 メイン ---
 st.markdown(f"<div class='user-title'>{user_name} 様</div><div class='main-title'>在庫リスト</div>", unsafe_allow_html=True)
 
 client = get_gspread_client()
 if client:
+    sh = client.open_by_url(URL)
     try:
-        # 💡 キャッシュ対策：毎回URLから開くのではなく、一度取得したシート情報を使い回す工夫
-        sh = client.open_by_url(URL)
-        try:
-            worksheet = sh.worksheet(user_name)
-        except gspread.exceptions.WorksheetNotFound:
-            worksheet = sh.add_worksheet(title=user_name, rows="1000", cols="10")
-            worksheet.append_row(["品名", "数量", "賞味期限", "保存場所", "種類", "LINE_ID"])
-            time.sleep(1) # 作成直後の安定待ち
-            st.rerun()
+        worksheet = sh.worksheet(SHEET_NAME)
+    except:
+        worksheet = sh.add_worksheet(title=SHEET_NAME, rows="5000", cols="10")
+        worksheet.append_row(["品名", "数量", "賞味期限", "保存場所", "種類", "LINE_ID"])
+        st.rerun()
 
-        # データの読み込み
-        data = worksheet.get_all_records()
-        df = pd.DataFrame(data) if data else pd.DataFrame(columns=["品名", "数量", "賞味期限", "保存場所", "種類", "LINE_ID"])
+    # 全データ取得
+    all_records = worksheet.get_all_records()
+    all_df = pd.DataFrame(all_records) if all_records else pd.DataFrame(columns=["品名", "数量", "賞味期限", "保存場所", "種類", "LINE_ID"])
+    
+    # 💡 自分のデータだけ抽出
+    df = all_df[all_df["LINE_ID"] == user_id].copy()
 
-    except Exception as e:
-        st.error("シートの読み込み中にエラーが発生しました。時間を置いてから再度お試しください。")
-        if st.button("再試行"):
-            st.rerun()
-        st.stop()
-
-    # --- サイドバー：合算ロジック ---
+    # --- サイドバー：追加（合算ロジック） ---
     with st.sidebar:
         st.markdown("### 在庫を追加")
         with st.form("add_form", clear_on_submit=True):
-            name = st.text_input("品名")
-            amount = st.number_input("数量", min_value=1, value=1)
-            expiry = st.date_input("賞味期限", value=date.today()).strftime('%Y/%m/%d')
-            cat1 = st.selectbox("保存場所", ["冷蔵", "冷凍", "常温", "その他"])
-            cat2 = st.selectbox("種類", ["肉", "野菜", "麺", "飲み物", "その他"])
-            
-            if st.form_submit_button("リストに追加") and name:
-                match = (df['品名'] == name) & (df['賞味期限'] == expiry) & (df['保存場所'] == cat1) & (df['種類'] == cat2)
-                try:
-                    if match.any():
-                        idx = df.index[match][0]
-                        new_qty = int(df.at[idx, '数量']) + amount
-                        worksheet.update_cell(int(idx) + 2, 2, int(new_qty))
-                    else:
-                        worksheet.append_row([name, int(amount), expiry, cat1, cat2, user_id])
-                    st.rerun()
-                except:
-                    st.error("API制限中です。しばらくお待ちください。")
+            n = st.text_input("品名")
+            a = st.number_input("数量", min_value=1, value=1)
+            e = st.date_input("賞味期限", value=date.today()).strftime('%Y/%m/%d')
+            c1 = st.selectbox("保存場所", ["冷蔵", "冷凍", "常温", "その他"])
+            c2 = st.selectbox("種類", ["肉", "野菜", "麺", "飲み物", "その他"])
+            if st.form_submit_button("リストに追加") and n:
+                # 💡 全データの中から、自分の、かつ同一条件の行を探す
+                match = (all_df['品名'] == n) & (all_df['賞味期限'] == e) & (all_df['保存場所'] == c1) & (all_df['種類'] == c2) & (all_df['LINE_ID'] == user_id)
+                if match.any():
+                    idx = all_df.index[match][0]
+                    new_q = int(all_df.at[idx, '数量']) + a
+                    worksheet.update_cell(int(idx) + 2, 2, int(new_q))
+                else:
+                    worksheet.append_row([n, int(a), e, c1, c2, user_id])
+                st.rerun()
 
     # --- メインエリア ---
     if not df.empty:
-        df_display = df.copy()
-        df_display.insert(0, "選択", False)
-        
-        search_query = st.text_input("検索")
-        if search_query:
-            mask = df_display.drop(columns=["選択"]).apply(lambda r: r.astype(str).str.contains(search_query, case=False).any(), axis=1)
-            df_display = df_display[mask]
+        df_disp = df.copy().insert(0, "選択", False) or df.assign(選択=False)
+        df_disp = df_disp[["選択", "品名", "数量", "賞味期限", "保存場所", "種類"]] # LINE_IDは隠す
 
-        c1, c2 = st.columns([1, 1])
-        with c1:
+        search = st.text_input("検索")
+        if search:
+            df_disp = df_disp[df_disp.apply(lambda r: r.astype(str).str.contains(search, case=False).any(), axis=1)]
+
+        col1, col2 = st.columns([1, 1])
+        with col1:
             if st.button("🔔 期限通知"):
                 today = date.today()
                 alerts = [f"・{r['品名']} ({r['賞味期限']})" for _, r in df.iterrows() if (datetime.strptime(str(r["賞味期限"]), '%Y/%m/%d').date() - today).days <= 3]
-                if alerts:
-                    send_individual_line(user_id, "\n".join(alerts)); st.success("通知済")
-        with c2:
-            delete_btn = st.button("🗑️ 選択項目を削除", type="primary")
+                if alerts: send_individual_line(user_id, "\n".join(alerts)); st.success("通知済")
+        with col2:
+            del_btn = st.button("🗑️ 選択項目を削除", type="primary")
 
-        edited_df = st.data_editor(
-            df_display.drop(columns=["LINE_ID"], errors='ignore'),
-            use_container_width=True,
-            hide_index=True,
-            column_config={"選択": st.column_config.CheckboxColumn(), "数量": st.column_config.NumberColumn(min_value=0)},
-            disabled=["品名", "賞味期限", "保存場所", "種類"],
-            key="main_editor"
-        )
+        edited_df = st.data_editor(df_disp, use_container_width=True, hide_index=True, key="ed",
+                                   column_config={"選択": st.column_config.CheckboxColumn(), "数量": st.column_config.NumberColumn(min_value=0)},
+                                   disabled=["品名", "賞味期限", "保存場所", "種類"])
 
-        # 💡 編集の反映（セッション状態を確認してAPIを叩く）
-        if st.session_state.get("main_editor") and st.session_state["main_editor"]["edited_rows"]:
-            for row_idx, changes in st.session_state["main_editor"]["edited_rows"].items():
+        # 💡 数量編集の反映
+        if st.session_state.ed["edited_rows"]:
+            for row_idx, changes in st.session_state.ed["edited_rows"].items():
                 if "数量" in changes:
-                    try:
-                        actual_idx = df_display.index[row_idx]
-                        worksheet.update_cell(int(actual_idx) + 2, 2, int(changes["数量"]))
-                    except: pass
+                    actual_idx = df_disp.index[row_idx]
+                    worksheet.update_cell(int(actual_idx) + 2, 2, int(changes["数量"]))
             st.rerun()
 
-        if delete_btn:
-            delete_indices = edited_df[edited_df["選択"] == True].index.tolist()
-            if delete_indices:
-                remaining_df = df.drop(delete_indices)
-                new_data = [["品名", "数量", "賞味期限", "保存場所", "種類", "LINE_ID"]] + remaining_df.values.tolist()
-                worksheet.clear(); worksheet.update('A1', new_data); st.rerun()
-    else:
-        st.info("データがありません")
+        # 💡 削除処理（自分の行だけを正確に消すために全体を再構築）
+        if del_btn:
+            del_indices = edited_df[edited_df["選択"] == True].index.tolist()
+            if del_indices:
+                new_all_df = all_df.drop(del_indices)
+                worksheet.clear()
+                worksheet.update('A1', [all_df.columns.tolist()] + new_all_df.values.tolist())
+                st.rerun()
+    else: st.info("データがありません")
