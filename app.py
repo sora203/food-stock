@@ -12,14 +12,28 @@ st.markdown("""
     .stApp { background-image: url("https://www.toptal.com/designers/subtlepatterns/uploads/wood_pattern.png"); background-repeat: repeat; background-attachment: fixed; }
     [data-testid="stAppViewBlockContainer"] { background-color: rgba(245, 222, 179, 0.7); padding: 3rem; border-radius: 15px; margin-top: 2rem; }
     .main-title { font-size: 3.5rem; font-weight: 900; color: #3e2723; line-height: 1.1; margin-bottom: 20px; }
-    .alert-box { padding: 10px; border-radius: 10px; margin-bottom: 10px; font-weight: bold; }
-    .alert-today { background-color: #ff5252; color: white; border: 2px solid #b71c1c; }
-    .alert-soon { background-color: #ffca28; color: #3e2723; border: 2px solid #f57f17; }
+    
+    /* 通知カードのデザイン */
+    .alert-card {
+        padding: 15px;
+        border-radius: 12px;
+        margin-bottom: 12px;
+        font-weight: bold;
+        display: flex;
+        align-items: center;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    /* 赤色: 1日前・当日・期限切れ */
+    .alert-danger { background-color: #ff5252; color: white; border-left: 8px solid #b71c1c; }
+    /* 黄色: 3日前 */
+    .alert-warning { background-color: #ffca28; color: #3e2723; border-left: 8px solid #f57f17; }
+    .alert-icon { font-size: 1.5rem; margin-right: 15px; }
+    
     #MainMenu, footer {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
 
-# 今日の日付を最初に定義しておく（エラー防止）
+# 今日の日付
 today_val = date.today()
 
 # --- 💡 Supabase接続 ---
@@ -72,51 +86,45 @@ def load_data():
 
 df = load_data()
 
-# --- ⏰ 期限アラート機能 ---
+# --- ⏰ 期限アラート機能（自動通知） ---
 if not df.empty:
     one_day_later = today_val + timedelta(days=1)
     three_days_later = today_val + timedelta(days=3)
     
     df['expiry_dt'] = pd.to_datetime(df['expiry_date']).dt.date
     
-    today_items = df[df['expiry_dt'] == today_val]
-    one_day_items = df[df['expiry_dt'] == one_day_later]
-    three_day_items = df[df['expiry_dt'] == three_days_later]
-    expired_items = df[df['expiry_dt'] < today_val]
+    # 🔴 赤色グループ（1日前〜期限切れ）
+    red_group = df[df['expiry_dt'] <= one_day_later]
+    # 🟡 黄色グループ（3日前のみ）
+    yellow_group = df[df['expiry_dt'] == three_days_later]
 
-    if not (today_items.empty and one_day_items.empty and three_day_items.empty and expired_items.empty):
-        st.markdown("### ⚠️ 期限アラート")
-        if not expired_items.empty:
-            for _, row in expired_items.iterrows():
-                st.markdown(f"<div class='alert-box alert-today'>【期限切れ！】 {row['name']} ({row['expiry_date']})</div>", unsafe_allow_html=True)
-        if not today_items.empty:
-            for _, row in today_items.iterrows():
-                st.markdown(f"<div class='alert-box alert-today'>【本日まで！】 {row['name']}</div>", unsafe_allow_html=True)
-        if not one_day_items.empty:
-            for _, row in one_day_items.iterrows():
-                st.markdown(f"<div class='alert-box alert-soon'>【あと1日】 {row['name']}</div>", unsafe_allow_html=True)
-        if not three_day_items.empty:
-            for _, row in three_day_items.iterrows():
-                st.markdown(f"<div class='alert-box alert-soon'>【あと3日】 {row['name']}</div>", unsafe_allow_html=True)
+    if not (red_group.empty and yellow_group.empty):
+        st.markdown("### 🔔 期限のお知らせ")
+        
+        # 赤色のアラートを表示
+        for _, row in red_group.iterrows():
+            status = "【期限切れ】" if row['expiry_dt'] < today_val else "【本日まで】" if row['expiry_dt'] == today_val else "【あと1日】"
+            icon = "🚫" if row['expiry_dt'] < today_val else "⏰"
+            st.markdown(f"""<div class='alert-card alert-danger'><span class='alert-icon'>{icon}</span>{status} {row['name']} ({row['expiry_date']})</div>""", unsafe_allow_html=True)
+        
+        # 黄色のアラートを表示
+        for _, row in yellow_group.iterrows():
+            st.markdown(f"""<div class='alert-card alert-warning'><span class='alert-icon'>📅</span>【あと3日】 {row['name']} ({row['expiry_date']})</div>""", unsafe_allow_html=True)
+        
         st.markdown("---")
 
-# --- サイドバー ---
+# --- サイドバー（追加フォーム） ---
 with st.sidebar:
     st.markdown("### 在庫を追加")
-    # フォームを開始
     with st.form("add_new_stock_form", clear_on_submit=True):
         n = st.text_input("品名")
         a = st.number_input("数量", min_value=1, value=1)
-        # format引数を削除して安定性を優先
         e_date = st.date_input("賞味期限", value=today_val)
         e = e_date.strftime('%Y-%m-%d')
         c1 = st.selectbox("保存場所", ["冷蔵", "冷凍", "常温", "その他"])
         c2 = st.selectbox("種類", ["肉", "野菜", "麺", "飲み物", "その他"])
         
-        # フォームの送信ボタン（これがないとエラーになります）
-        submit_clicked = st.form_submit_button("追加する")
-        
-        if submit_clicked and n:
+        if st.form_submit_button("追加する") and n:
             existing = supabase.table("stocks").select("*").match({
                 "name": n, "expiry_date": e, "location": c1, "category": c2, "line_id": uid
             }).execute()
@@ -130,7 +138,7 @@ with st.sidebar:
                 }).execute()
             st.rerun()
 
-# --- メイン表示 ---
+# --- メイン表示（表と削除） ---
 if not df.empty:
     st.dataframe(
         df[["name", "quantity", "expiry_date", "location", "category"]], 
