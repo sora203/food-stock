@@ -67,7 +67,7 @@ st.markdown("""
     #MainMenu {visibility: hidden;}                /* 右上のメニュー */
     footer {visibility: hidden;}                   /* 下部のクレジット */
     .stDeployButton {display:none;}                /* 右下の王冠マーク */
-    [data-testid="stHeader"] {display:none;}       /* 上部のヘッダーバー（Forkなど） */
+    /*[data-testid="stHeader"] {display:none;}*/       /* 上部のヘッダーバー（Forkなど） */
     
     </style>
 """, unsafe_allow_html=True)
@@ -203,3 +203,4 @@ if not df.empty:
                 st.rerun()
 else:
     st.info("在庫がありません。サイドバーから追加してください！")
+
