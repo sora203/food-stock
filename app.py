@@ -60,7 +60,6 @@ st.markdown(f"<div>{uname} 様</div><div class='main-title'>在庫リスト</div
 
 # --- 🍎 データ操作 ---
 def load_data():
-    # Supabaseから自分のデータのみ取得
     res = supabase.table("stocks").select("*").eq("line_id", uid).order("expiry_date").execute()
     return pd.DataFrame(res.data)
 
@@ -76,7 +75,6 @@ with st.sidebar:
         c1 = st.selectbox("保存場所", ["冷蔵", "冷凍", "常温", "その他"])
         c2 = st.selectbox("種類", ["肉", "野菜", "麺", "飲み物", "その他"])
         if st.form_submit_button("追加") and n:
-            # 同じものがあるかチェック（重複登録防止）
             existing = supabase.table("stocks").select("*").match({
                 "name": n, "expiry_date": e, "location": c1, "category": c2, "line_id": uid
             }).execute()
@@ -92,41 +90,33 @@ with st.sidebar:
 
 # --- メイン表示 ---
 if not df.empty:
-    # 削除用のチェックボックス列を追加して表示
-    df_disp = df.assign(選択=False)[["選択", "name", "quantity", "expiry_date", "location", "category"]]
-    
-    # データの編集（数量変更など）
-    ed_res = st.data_editor(
-        df_disp, 
+    # 1. 在庫表の表示（編集機能なしのシンプルな表にする）
+    st.dataframe(
+        df[["name", "quantity", "expiry_date", "location", "category"]], 
         use_container_width=True, 
-        hide_index=True, 
-        key="data_editor",
-        column_config={
-            "選択": st.column_config.CheckboxColumn(help="削除したい項目にチェック"),
-            "quantity": st.column_config.NumberColumn("数量")
-        }
+        hide_index=True
     )
 
-    # 数量が表の中で直接書き換えられた場合の更新処理
-    if st.session_state.data_editor.get("edited_rows"):
-        for row_idx, changes in st.session_state.data_editor["edited_rows"].items():
-            if "quantity" in changes:
-                db_id = df.iloc[int(row_idx)]["id"]
-                supabase.table("stocks").update({"quantity": int(changes["quantity"])}).eq("id", db_id).execute()
-        st.rerun()
+    st.markdown("---")
+    
+    # 2. 削除・更新の操作エリア
+    st.markdown("### 🗑️ 在庫の整理")
+    
+    # 削除したい項目をリストから選ぶ方式（これが一番安定します）
+    delete_items = st.multiselect(
+        "削除したい項目を選んでください",
+        options=df["id"].tolist(),
+        format_func=lambda x: f"{df[df['id']==x]['name'].values[0]} ({df[df['id']==x]['expiry_date'].values[0]})"
+    )
 
-    # 🗑️ 削除ボタンの処理（ちかちか対策版）
-    if st.button("🗑️ 選択した項目を削除", type="primary"):
-        selected_rows = ed_res[ed_res["選択"] == True]
-        if not selected_rows.empty:
-            # チェックされた行のIDを抽出して一気に削除
-            ids_to_del = df.iloc[selected_rows.index]["id"].tolist()
-            for d_id in ids_to_del:
+    if st.button("選択した項目を削除する", type="primary"):
+        if delete_items:
+            for d_id in delete_items:
                 supabase.table("stocks").delete().eq("id", d_id).execute()
-            
-            # セッションの状態をクリアして画面をリフレッシュ（ループ防止）
-            if "data_editor" in st.session_state:
-                del st.session_state["data_editor"]
+            st.success("削除しました！")
             st.rerun()
+        else:
+            st.warning("削除する項目を選んでください。")
+
 else:
     st.info("在庫がありません。サイドバーから追加してください！")
