@@ -105,13 +105,20 @@ if not df.empty:
                 supabase.table("stocks").update({"quantity": changes["quantity"]}).eq("id", db_id).execute()
         st.rerun()
 
-    # 削除ボタン
+# 削除ボタン
     if st.button("🗑️ 選択した項目を削除", type="primary"):
         selected_indices = ed_res[ed_res["選択"] == True].index.tolist()
         if selected_indices:
             ids_to_del = df.iloc[selected_indices]["id"].tolist()
+            # 1件ずつ削除
             for d_id in ids_to_del:
                 supabase.table("stocks").delete().eq("id", d_id).execute()
+            
+            # --- 💡 ここがポイント！ ---
+            # 削除が終わったらセッションの状態を一度リセットして再起動
+            if "data_editor" in st.session_state:
+                del st.session_state["data_editor"]
             st.rerun()
 else:
     st.info("在庫がありません。サイドバーから追加してください！")
+
