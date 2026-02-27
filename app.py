@@ -13,7 +13,6 @@ st.markdown("""
     [data-testid="stAppViewBlockContainer"] { background-color: rgba(245, 222, 179, 0.7); padding: 3rem; border-radius: 15px; margin-top: 2rem; }
     .main-title { font-size: 3.5rem; font-weight: 900; color: #3e2723; line-height: 1.1; margin-bottom: 20px; }
     
-    /* 通知カードのデザイン */
     .alert-card {
         padding: 15px;
         border-radius: 12px;
@@ -32,6 +31,10 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 today_val = date.today()
+
+# カテゴリの定義
+LOCATIONS = ["冷蔵", "冷凍", "常温"]
+CATEGORIES = ["肉", "野菜", "海鮮", "麺", "飲料", "調味料", "その他"]
 
 # --- 💡 Supabase接続 ---
 @st.cache_resource
@@ -83,7 +86,7 @@ def load_data():
 
 df = load_data()
 
-# --- ⏰ 期限アラート機能（自動通知） ---
+# --- ⏰ 期限アラート機能 ---
 if not df.empty:
     one_day_later = today_val + timedelta(days=1)
     three_days_later = today_val + timedelta(days=3)
@@ -110,8 +113,9 @@ with st.sidebar:
         a = st.number_input("数量", min_value=1, value=1)
         e_date = st.date_input("賞味期限", value=today_val)
         e = e_date.strftime('%Y-%m-%d')
-        c1 = st.selectbox("保存場所", ["冷蔵", "冷凍", "常温", "その他"])
-        c2 = st.selectbox("種類", ["肉", "野菜", "麺", "飲み物", "その他"])
+        c1 = st.selectbox("保存場所", LOCATIONS)
+        c2 = st.selectbox("種類", CATEGORIES)
+        
         if st.form_submit_button("追加する") and n:
             existing = supabase.table("stocks").select("*").match({"name": n, "expiry_date": e, "location": c1, "category": c2, "line_id": uid}).execute()
             if existing.data:
@@ -121,25 +125,34 @@ with st.sidebar:
                 supabase.table("stocks").insert({"name": n, "quantity": a, "expiry_date": e, "location": c1, "category": c2, "line_id": uid}).execute()
             st.rerun()
 
-# --- メイン表示（タブ切り替え） ---
+# --- メイン表示（タブとフィルター） ---
 if not df.empty:
-    # 🌟 タブを作成
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["すべて", "❄️ 冷蔵", "🧊 冷凍", "📦 常温", "🗑️ 整理"])
 
+    # 絞り込み表示用の共通関数
+    def display_filtered_df(target_df, show_category_filter=True, key_suffix=""):
+        if show_category_filter:
+            # 種類のフィルター（マルチセレクト）
+            selected_cats = st.multiselect(f"種類で絞り込み ({key_suffix})", CATEGORIES, key=f"filter_{key_suffix}")
+            if selected_cats:
+                target_df = target_df[target_df['category'].isin(selected_cats)]
+        
+        if target_df.empty:
+            st.write("該当する在庫はありません。")
+        else:
+            st.dataframe(target_df[["name", "quantity", "expiry_date", "location", "category"]], use_container_width=True, hide_index=True)
+
     with tab1:
-        st.dataframe(df[["name", "quantity", "expiry_date", "location", "category"]], use_container_width=True, hide_index=True)
+        display_filtered_df(df, key_suffix="all")
 
     with tab2:
-        res_df = df[df['location'] == '冷蔵']
-        st.dataframe(res_df[["name", "quantity", "expiry_date", "category"]], use_container_width=True, hide_index=True)
+        display_filtered_df(df[df['location'] == '冷蔵'], key_suffix="fridge")
 
     with tab3:
-        fz_df = df[df['location'] == '冷凍']
-        st.dataframe(fz_df[["name", "quantity", "expiry_date", "category"]], use_container_width=True, hide_index=True)
+        display_filtered_df(df[df['location'] == '冷凍'], key_suffix="freezer")
 
     with tab4:
-        room_df = df[df['location'] == '常温']
-        st.dataframe(room_df[["name", "quantity", "expiry_date", "category"]], use_container_width=True, hide_index=True)
+        display_filtered_df(df[df['location'] == '常温'], key_suffix="pantry")
 
     with tab5:
         st.markdown("### 🗑️ 在庫の一括削除")
