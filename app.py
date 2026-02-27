@@ -3,6 +3,7 @@ import gspread
 import pandas as pd
 from datetime import datetime, date
 import requests
+import time  # 💡 リトライ待ち時間のために追加
 
 # --- 🎨 デザイン ---
 def local_css():
@@ -29,6 +30,18 @@ local_css()
 # --- 設定 ---
 URL = "https://docs.google.com/spreadsheets/d/10Hhcn0qNOvGceSNWLxy3_IOCJTvS1i9xaarZirmUUdw/edit?usp=sharing"
 SHEET_NAME = "在庫データ"
+
+# --- 💡 リトライ機能付きの読み込み関数 ---
+def get_records_with_retry(ws, retries=3):
+    for i in range(retries):
+        try:
+            return ws.get_all_records()
+        except Exception:
+            if i < retries - 1:
+                time.sleep(2) # 2秒待って再試行
+                continue
+            else:
+                raise # 3回ダメならエラーを出す
 
 # --- LINE連携 ---
 def get_line_login_url():
@@ -66,12 +79,11 @@ if "user_id" not in st.session_state:
     else:
         try:
             u_info = get_line_user_info(qp["code"])
-            # 💡 IDを確実に文字列として保存
             st.session_state.user_id = str(u_info.get("sub"))
             st.session_state.user_name = u_info.get("displayName") or "利用者"
             st.query_params.clear()
         except:
-            st.error("認証エラーが発生しました。ページを再読み込みしてください。")
+            st.error("認証エラーが発生しました。再ログインしてください。")
             st.stop()
 
 uid = st.session_state.user_id
@@ -86,22 +98,26 @@ if client:
     try:
         ws = sh.worksheet(SHEET_NAME)
     except:
-        ws = sh.add_worksheet(title=SHEET_NAME, rows="5000", cols="10")
+        ws = sh.add_worksheet(title=SHEET_NAME, rows="1000", cols="10")
         ws.append_row(["品名", "数量", "賞味期限", "保存場所", "種類", "LINE_ID"])
         st.rerun()
 
-    # 全データ取得
-    all_recs = ws.get_all_records()
-    all_df = pd.DataFrame(all_recs) if all_recs else pd.DataFrame(columns=["品名", "数量", "賞味期限", "保存場所", "種類", "LINE_ID"])
+    # 💡 読み込み（失敗してもリトライする）
+    try:
+        all_recs = get_records_with_retry(ws)
+        all_df = pd.DataFrame(all_recs) if all_recs else pd.DataFrame(columns=["品名", "数量", "賞味期限", "保存場所", "種類", "LINE_ID"])
+    except:
+        st.warning("Google接続が不安定です。再読み込み中...")
+        time.sleep(2)
+        st.rerun()
     
-    # 💡 フィルタリングを強化（全ての型を文字列にしてから比較）
+    # フィルタリング
     if not all_df.empty:
         all_df["LINE_ID"] = all_df["LINE_ID"].astype(str)
         df = all_df[all_df["LINE_ID"] == uid].copy()
     else:
         df = pd.DataFrame(columns=["品名", "数量", "賞味期限", "保存場所", "種類", "LINE_ID"])
 
-    # --- サイドバー ---
     with st.sidebar:
         st.markdown("### 在庫を追加")
         with st.form("add_form", clear_on_submit=True):
@@ -111,7 +127,6 @@ if client:
             c1 = st.selectbox("保存場所", ["冷蔵", "冷凍", "常温", "その他"])
             c2 = st.selectbox("種類", ["肉", "野菜", "麺", "飲み物", "その他"])
             if st.form_submit_button("追加") and n:
-                # 合算チェック
                 m = (all_df['品名'] == n) & (all_df['賞味期限'] == e) & (all_df['保存場所'] == c1) & (all_df['種類'] == c2) & (all_df['LINE_ID'] == uid)
                 try:
                     if m.any():
@@ -122,20 +137,19 @@ if client:
                         ws.append_row([n, int(a), e, c1, c2, uid])
                     st.rerun()
                 except:
-                    st.error("エラーが発生しました。少し待ってからやり直してください。")
+                    st.error("保存に失敗しました。少し待ってから再度「追加」を押してください。")
 
-    # --- リスト表示 ---
     if not df.empty:
         df_disp = df.copy()
         df_disp.insert(0, "選択", False)
         df_disp = df_disp[["選択", "品名", "数量", "賞味期限", "保存場所", "種類"]]
 
-        search = st.text_input("検索", placeholder="品名で絞り込み...")
+        search = st.text_input("検索")
         if search:
             df_disp = df_disp[df_disp.apply(lambda r: r.astype(str).str.contains(search, case=False).any(), axis=1)]
 
-        col1, col2 = st.columns([1, 1])
-        with col1:
+        c1, c2 = st.columns([1, 1])
+        with c1:
             if st.button("🔔 期限通知"):
                 today = date.today()
                 alrt = [f"・{r['品名']} ({r['賞味期限']})" for _, r in df.iterrows() if (datetime.strptime(str(r["賞味期限"]), '%Y/%m/%d').date() - today).days <= 3]
@@ -144,31 +158,30 @@ if client:
                                   headers={"Content-Type": "application/json", "Authorization": f"Bearer {st.secrets['line']['channel_access_token']}"},
                                   json={"to": uid, "messages": [{"type": "text", "text": "\n".join(alrt)}]})
                     st.success("通知済")
-        with col2:
-            if st.button("🗑️ 選択した項目を削除", type="primary"):
-                # 削除はエディタの選択状態を見る
-                pass
+        with c2:
+            del_btn = st.button("🗑️ 削除実行", type="primary")
 
-        # データエディタ
         ed_res = st.data_editor(df_disp, use_container_width=True, hide_index=True, key="ed",
                                 column_config={"選択": st.column_config.CheckboxColumn(), "数量": st.column_config.NumberColumn(min_value=0)},
                                 disabled=["品名", "賞味期限", "保存場所", "種類"])
 
-        # 数量変更の保存
+        # 数量変更
         if st.session_state.ed["edited_rows"]:
             for r_idx, chg in st.session_state.ed["edited_rows"].items():
                 if "数量" in chg:
                     actual_idx = df_disp.index[r_idx]
-                    ws.update_cell(int(actual_idx) + 2, 2, int(chg["数量"]))
-            st.rerun()
+                    try:
+                        ws.update_cell(int(actual_idx) + 2, 2, int(chg["数量"]))
+                        st.rerun()
+                    except: st.error("API制限中です...")
 
-        # 削除の実行
-        del_list = ed_res[ed_res["選択"] == True].index.tolist()
-        if del_list:
-            if st.button("本当に削除を実行する"):
+        # 削除
+        if del_btn:
+            del_list = ed_res[ed_res["選択"] == True].index.tolist()
+            if del_list:
                 new_all = all_df.drop(del_list)
                 ws.clear()
                 ws.update('A1', [all_df.columns.tolist()] + new_all.values.tolist())
                 st.rerun()
     else:
-        st.info("表示できる在庫データがありません。サイドバーから追加してください。")
+        st.info("データがありません。")
