@@ -63,16 +63,23 @@ st.markdown("""
     .alert-warning { background-color: #ffca28; color: #3e2723; border-left: 8px solid #f57f17; }
     .alert-icon { font-size: 1.5rem; margin-right: 15px; }
     
-    /* 🌟 不要なものを消す */
-    #MainMenu {visibility: hidden;}                /* 右上のメニュー */
+    /* 🌟 不要なものを完全に消す */
     footer {visibility: hidden;}                   /* 下部のクレジット */
     .stDeployButton {display:none;}                /* 右下の王冠マーク */
     
-    /* 🌟 ヘッダーの背景だけ消して、矢印ボタンは残す */
+    /* 🌟 ヘッダーバーのすべての要素を消す */
     header[data-testid="stHeader"] {
         background-color: rgba(0,0,0,0) !important;
     }
-    
+    /* ボタン（矢印）以外を隠す */
+    header[data-testid="stHeader"] button {
+        display: none;
+    }
+    /* 矢印ボタンだけを表示させるための魔法のCSS */
+    button[kind="secondary"] {
+        display: block !important;
+    }
+
     </style>
 """, unsafe_allow_html=True)
 
