@@ -63,23 +63,25 @@ st.markdown("""
     .alert-warning { background-color: #ffca28; color: #3e2723; border-left: 8px solid #f57f17; }
     .alert-icon { font-size: 1.5rem; margin-right: 15px; }
     
-    /* 🌟 不要なものを完全に消す */
+    /* 🌟 ここで不要な要素を完全に非表示にする */
     footer {visibility: hidden;}                   /* 下部のクレジット */
     .stDeployButton {display:none;}                /* 右下の王冠マーク */
     
-    /* 🌟 ヘッダーバーのすべての要素を消す */
+    /* ヘッダー全体を透過させ、その中にある不要な文字などを消す */
     header[data-testid="stHeader"] {
-        background-color: rgba(0,0,0,0) !important;
+        background: none !important;
+        border: none !important;
     }
-    /* ボタン（矢印）以外を隠す */
-    header[data-testid="stHeader"] button {
-        display: none;
+    
+    /* ヘッダーの中の要素を消すが、サイドバーボタン(通常kind="secondary")は残したい */
+    /* ...としたいが、Streamlitの仕様でkind指定が難しいので、文字要素だけ狙い撃ち */
+    header[data-testid="stHeader"] p {
+        display: none !important;
     }
-    /* 矢印ボタンだけを表示させるための魔法のCSS */
-    button[kind="secondary"] {
-        display: block !important;
+    header[data-testid="stHeader"] .st-emotion-cache-1c75b06 { /* メニューアイコン */
+        display: none !important;
     }
-
+    
     </style>
 """, unsafe_allow_html=True)
 
