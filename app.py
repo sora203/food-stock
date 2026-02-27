@@ -9,24 +9,45 @@ st.set_page_config(page_title="在庫管理メモ", layout="wide")
 
 st.markdown("""
     <style>
+    /* 背景とコンテナ */
     .stApp { background-image: url("https://www.toptal.com/designers/subtlepatterns/uploads/wood_pattern.png"); background-repeat: repeat; background-attachment: fixed; }
     [data-testid="stAppViewBlockContainer"] { background-color: rgba(245, 222, 179, 0.7); padding: 3rem; border-radius: 15px; margin-top: 2rem; }
     
     /* メインタイトル */
     .main-title { font-size: 3.5rem; font-weight: 900; color: #3e2723; line-height: 1.1; margin-bottom: 20px; }
     
-    /* 🌟 メイン画面側のマルチセレクト（種類で絞り込み）のラベルだけを茶色にする */
+    /* 🌟 種類で絞り込み（マルチセレクトのラベル）の色をタブと同じ茶色に */
     [data-testid="stAppViewBlockContainer"] .stMultiSelect label {
         color: #3e2723 !important;
-        font-weight: bold !important;
+        font-weight: 800 !important;
         font-size: 1.2rem !important;
     }
 
-    /* 表（DataFrame）の文字色を濃いグレーに */
+    /* 🌟 タブをボタン風にカスタマイズ */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 10px;
+        background-color: rgba(62, 39, 35, 0.1); /* ほんのり茶色の背景 */
+        padding: 8px;
+        border-radius: 10px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        height: 45px;
+        background-color: #ffffff; /* 通常時は白ボタン */
+        border-radius: 8px;
+        padding: 0 20px;
+        color: #3e2723 !important;
+        font-weight: bold !important;
+        border: 1px solid #3e2723;
+        transition: all 0.3s;
+    }
+    .stTabs [aria-selected="true"] {
+        background-color: #3e2723 !important; /* 選択時はタイトルと同じ茶色 */
+        color: #ffffff !important;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+
+    /* 表の文字色 */
     [data-testid="stDataFrame"] td { color: #212121 !important; font-weight: 500; }
-    
-    /* タブの文字色調整 */
-    .stTabs [data-baseweb="tab"] { color: #3e2723; font-weight: bold; }
     
     /* 通知カード */
     .alert-card {
@@ -47,8 +68,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 today_val = date.today()
-
-# カテゴリの定義
 LOCATIONS = ["冷蔵", "冷凍", "常温"]
 CATEGORIES = ["肉", "野菜", "海鮮", "麺", "飲料", "調味料", "その他"]
 
@@ -142,7 +161,7 @@ with st.sidebar:
 
 # --- メイン表示 ---
 if not df.empty:
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["すべて", "❄️ 冷蔵", "🧊 冷凍", "📦 常温", "🗑️ 整理"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["🏠 すべて", "❄️ 冷蔵", "🧊 冷凍", "📦 常温", "🗑️ 整理"])
 
     def display_filtered_df(target_df, key_suffix=""):
         selected_cats = st.multiselect("種類で絞り込み", CATEGORIES, key=f"filter_{key_suffix}")
