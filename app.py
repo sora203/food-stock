@@ -12,18 +12,18 @@ st.markdown("""
     .stApp { background-image: url("https://www.toptal.com/designers/subtlepatterns/uploads/wood_pattern.png"); background-repeat: repeat; background-attachment: fixed; }
     [data-testid="stAppViewBlockContainer"] { background-color: rgba(245, 222, 179, 0.7); padding: 3rem; border-radius: 15px; margin-top: 2rem; }
     
-    /* メインタイトル & テキスト全般 */
+    /* メインタイトル */
     .main-title { font-size: 3.5rem; font-weight: 900; color: #3e2723; line-height: 1.1; margin-bottom: 20px; }
     
-    /* すべてのラベル（絞り込み・入力項目など）の文字色を濃い茶色に */
-    label, .stMultiSelect label, .stSelectbox label, .stTextInput label, .stNumberInput label, .stDateInput label {
+    /* メイン画面側のラベル（絞り込みなど）だけを茶色にする */
+    [data-testid="stAppViewBlockContainer"] label {
         color: #3e2723 !important;
         font-weight: bold !important;
         font-size: 1.1rem !important;
     }
 
-    /* 表（DataFrame）の文字色を黒に */
-    [data-testid="stDataFrame"] td { color: #000000 !important; font-weight: 500; }
+    /* 表（DataFrame）の文字色を読みやすい濃いグレーに */
+    [data-testid="stDataFrame"] td { color: #212121 !important; font-weight: 500; }
     
     /* タブの文字色調整 */
     .stTabs [data-baseweb="tab"] { color: #3e2723; font-weight: bold; }
@@ -80,7 +80,7 @@ if "user_id" not in st.session_state:
     qp = st.query_params
     if "code" not in qp:
         st.markdown("<h1 style='text-align: center;'>Stock Manager</h1>", unsafe_allow_html=True)
-        st.center_button = st.link_button("LINEでログイン", get_line_login_url())
+        st.link_button("LINEでログイン", get_line_login_url())
         st.stop()
     else:
         try:
@@ -145,7 +145,6 @@ if not df.empty:
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["すべて", "❄️ 冷蔵", "🧊 冷凍", "📦 常温", "🗑️ 整理"])
 
     def display_filtered_df(target_df, key_suffix=""):
-        # 💡 ここで絞り込み用ラベルの文字色を制御
         selected_cats = st.multiselect("種類で絞り込み", CATEGORIES, key=f"filter_{key_suffix}")
         if selected_cats:
             target_df = target_df[target_df['category'].isin(selected_cats)]
