@@ -63,11 +63,14 @@ st.markdown("""
     .alert-warning { background-color: #ffca28; color: #3e2723; border-left: 8px solid #f57f17; }
     .alert-icon { font-size: 1.5rem; margin-right: 15px; }
     
-    /* 🌟 ここで不要なマークやリンクを消す */
+    /* 🌟 不要なマークやリンクを消し、矢印だけ残す */
     #MainMenu {visibility: hidden;}                /* 右上のメニュー */
     footer {visibility: hidden;}                   /* 下部のクレジット */
     .stDeployButton {display:none;}                /* 右下の王冠マーク */
-    /*[data-testid="stHeader"] {display:none;}*/       /* 上部のヘッダーバー（Forkなど） */
+    
+    /* ヘッダー全体を非表示にするが、矢印ボタン(st-emotion-cache-...)は残す */
+    header[data-testid="stHeader"] {background: none;}
+    header[data-testid="stHeader"] > div {display: none;}
     
     </style>
 """, unsafe_allow_html=True)
@@ -203,4 +206,3 @@ if not df.empty:
                 st.rerun()
 else:
     st.info("在庫がありません。サイドバーから追加してください！")
-
