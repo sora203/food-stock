@@ -7,12 +7,24 @@ from supabase import create_client, Client
 # --- 🎨 デザインと基本設定 ---
 st.set_page_config(page_title="在庫管理メモ", layout="wide")
 
+# メインタイトルと同じ茶色（#3e2723）をテーマに、視認性を高めるCSS
 st.markdown("""
     <style>
     .stApp { background-image: url("https://www.toptal.com/designers/subtlepatterns/uploads/wood_pattern.png"); background-repeat: repeat; background-attachment: fixed; }
     [data-testid="stAppViewBlockContainer"] { background-color: rgba(245, 222, 179, 0.7); padding: 3rem; border-radius: 15px; margin-top: 2rem; }
+    
+    /* メインタイトル */
     .main-title { font-size: 3.5rem; font-weight: 900; color: #3e2723; line-height: 1.1; margin-bottom: 20px; }
     
+    /* 表（DataFrame）の文字色を黒っぽく、ヘッダーをタイトル色に合わせる */
+    [data-testid="stTable"] { color: #212121; }
+    [data-testid="stDataFrame"] td { color: #212121; font-weight: 500; }
+    
+    /* タブの文字色調整 */
+    .stTabs [data-baseweb="tab"] { color: #3e2723; font-weight: bold; }
+    .stTabs [data-baseweb="tab"]:hover { color: #5d4037; }
+    
+    /* 通知カードのデザイン */
     .alert-card {
         padding: 15px;
         border-radius: 12px;
@@ -77,7 +89,7 @@ if "user_id" not in st.session_state:
             st.stop()
 
 uid, uname = st.session_state.user_id, st.session_state.user_name
-st.markdown(f"<div>{uname} 様</div><div class='main-title'>在庫リスト</div>", unsafe_allow_html=True)
+st.markdown(f"<div style='color: #3e2723; font-weight: bold;'>{uname} 様</div><div class='main-title'>在庫リスト</div>", unsafe_allow_html=True)
 
 # --- 🍎 データ操作 ---
 def load_data():
@@ -96,7 +108,7 @@ if not df.empty:
     yellow_group = df[df['expiry_dt'] == three_days_later]
 
     if not (red_group.empty and yellow_group.empty):
-        st.markdown("### 🔔 期限のお知らせ")
+        st.markdown(f"<h3 style='color: #3e2723;'>🔔 期限のお知らせ</h3>", unsafe_allow_html=True)
         for _, row in red_group.iterrows():
             status = "【期限切れ】" if row['expiry_dt'] < today_val else "【本日まで】" if row['expiry_dt'] == today_val else "【あと1日】"
             icon = "🚫" if row['expiry_dt'] < today_val else "⏰"
@@ -117,7 +129,7 @@ with st.sidebar:
         c2 = st.selectbox("種類", CATEGORIES)
         
         if st.form_submit_button("追加する") and n:
-            existing = supabase.table("stocks").select("*").match({"name": n, "expiry_date": e, "location": c1, "category": c2, "line_id": uid}).execute()
+            existing = supabase.table("stocks").match({"name": n, "expiry_date": e, "location": c1, "category": c2, "line_id": uid}).execute()
             if existing.data:
                 new_qty = existing.data[0]["quantity"] + a
                 supabase.table("stocks").update({"quantity": new_qty}).eq("id", existing.data[0]["id"]).execute()
@@ -125,42 +137,32 @@ with st.sidebar:
                 supabase.table("stocks").insert({"name": n, "quantity": a, "expiry_date": e, "location": c1, "category": c2, "line_id": uid}).execute()
             st.rerun()
 
-# --- メイン表示（タブとフィルター） ---
+# --- メイン表示 ---
 if not df.empty:
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["すべて", "❄️ 冷蔵", "🧊 冷凍", "📦 常温", "🗑️ 整理"])
 
-    # 絞り込み表示用の共通関数
-    def display_filtered_df(target_df, show_category_filter=True, key_suffix=""):
-        if show_category_filter:
-            # 種類のフィルター（マルチセレクト）
-            selected_cats = st.multiselect(f"種類で絞り込み ({key_suffix})", CATEGORIES, key=f"filter_{key_suffix}")
-            if selected_cats:
-                target_df = target_df[target_df['category'].isin(selected_cats)]
+    def display_filtered_df(target_df, key_suffix=""):
+        selected_cats = st.multiselect(f"種類で絞り込み", CATEGORIES, key=f"filter_{key_suffix}")
+        if selected_cats:
+            target_df = target_df[target_df['category'].isin(selected_cats)]
         
         if target_df.empty:
-            st.write("該当する在庫はありません。")
+            st.info("該当する在庫はありません。")
         else:
+            # 表自体の表示（文字色はCSSで調整済み）
             st.dataframe(target_df[["name", "quantity", "expiry_date", "location", "category"]], use_container_width=True, hide_index=True)
 
     with tab1:
         display_filtered_df(df, key_suffix="all")
-
     with tab2:
         display_filtered_df(df[df['location'] == '冷蔵'], key_suffix="fridge")
-
     with tab3:
         display_filtered_df(df[df['location'] == '冷凍'], key_suffix="freezer")
-
     with tab4:
         display_filtered_df(df[df['location'] == '常温'], key_suffix="pantry")
-
     with tab5:
-        st.markdown("### 🗑️ 在庫の一括削除")
-        delete_items = st.multiselect(
-            "削除したい項目を選んでください",
-            options=df["id"].tolist(),
-            format_func=lambda x: f"{df[df['id']==x]['name'].values[0]} ({df[df['id']==x]['expiry_date'].values[0]})"
-        )
+        st.markdown(f"<h3 style='color: #3e2723;'>🗑️ 在庫の一括削除</h3>", unsafe_allow_html=True)
+        delete_items = st.multiselect("削除したい項目を選んでください", options=df["id"].tolist(), format_func=lambda x: f"{df[df['id']==x]['name'].values[0]} ({df[df['id']==x]['expiry_date'].values[0]})")
         if st.button("選択した項目を削除する", type="primary"):
             if delete_items:
                 for d_id in delete_items:
