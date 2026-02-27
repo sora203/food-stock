@@ -16,23 +16,23 @@ st.markdown("""
     /* メインタイトル */
     .main-title { font-size: 3.5rem; font-weight: 900; color: #3e2723; line-height: 1.1; margin-bottom: 20px; }
     
-    /* 🌟 種類で絞り込み（マルチセレクトのラベル）の色をタブと同じ茶色に */
+    /* 種類で絞り込み（マルチセレクトのラベル）の色をタブと同じ茶色に */
     [data-testid="stAppViewBlockContainer"] .stMultiSelect label {
         color: #3e2723 !important;
         font-weight: 800 !important;
         font-size: 1.2rem !important;
     }
 
-    /* 🌟 タブをボタン風にカスタマイズ */
+    /* タブをボタン風にカスタマイズ */
     .stTabs [data-baseweb="tab-list"] {
         gap: 10px;
-        background-color: rgba(62, 39, 35, 0.1); /* ほんのり茶色の背景 */
+        background-color: rgba(62, 39, 35, 0.1);
         padding: 8px;
         border-radius: 10px;
     }
     .stTabs [data-baseweb="tab"] {
         height: 45px;
-        background-color: #ffffff; /* 通常時は白ボタン */
+        background-color: #ffffff;
         border-radius: 8px;
         padding: 0 20px;
         color: #3e2723 !important;
@@ -41,7 +41,7 @@ st.markdown("""
         transition: all 0.3s;
     }
     .stTabs [aria-selected="true"] {
-        background-color: #3e2723 !important; /* 選択時はタイトルと同じ茶色 */
+        background-color: #3e2723 !important;
         color: #ffffff !important;
         box-shadow: 0 4px 8px rgba(0,0,0,0.2);
     }
@@ -63,7 +63,12 @@ st.markdown("""
     .alert-warning { background-color: #ffca28; color: #3e2723; border-left: 8px solid #f57f17; }
     .alert-icon { font-size: 1.5rem; margin-right: 15px; }
     
-    #MainMenu, footer {visibility: hidden;}
+    /* 🌟 ここで不要なマークやリンクを消す */
+    #MainMenu {visibility: hidden;}                /* 右上のメニュー */
+    footer {visibility: hidden;}                   /* 下部のクレジット */
+    .stDeployButton {display:none;}                /* 右下の王冠マーク */
+    [data-testid="stHeader"] {display:none;}       /* 上部のヘッダーバー（Forkなど） */
+    
     </style>
 """, unsafe_allow_html=True)
 
@@ -140,7 +145,7 @@ if not df.empty:
             st.markdown(f"""<div class='alert-card alert-warning'><span class='alert-icon'>📅</span>【あと3日】 {row['name']} ({row['expiry_date']})</div>""", unsafe_allow_html=True)
         st.markdown("---")
 
-# --- サイドバー ---
+# --- サイドバー（追加フォーム） ---
 with st.sidebar:
     st.markdown("### 在庫を追加")
     with st.form("add_new_stock_form", clear_on_submit=True):
@@ -150,13 +155,19 @@ with st.sidebar:
         e = e_date.strftime('%Y-%m-%d')
         c1 = st.selectbox("保存場所", LOCATIONS)
         c2 = st.selectbox("種類", CATEGORIES)
+        
         if st.form_submit_button("追加する") and n:
-            existing = supabase.table("stocks").match({"name": n, "expiry_date": e, "location": c1, "category": c2, "line_id": uid}).execute()
-            if existing.data:
+            existing = supabase.table("stocks").select("*").match({
+                "name": n, "expiry_date": e, "location": c1, "category": c2, "line_id": uid
+            }).execute()
+            
+            if existing.data and len(existing.data) > 0:
                 new_qty = existing.data[0]["quantity"] + a
                 supabase.table("stocks").update({"quantity": new_qty}).eq("id", existing.data[0]["id"]).execute()
             else:
-                supabase.table("stocks").insert({"name": n, "quantity": a, "expiry_date": e, "location": c1, "category": c2, "line_id": uid}).execute()
+                supabase.table("stocks").insert({
+                    "name": n, "quantity": a, "expiry_date": e, "location": c1, "category": c2, "line_id": uid
+                }).execute()
             st.rerun()
 
 # --- メイン表示 ---
