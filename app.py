@@ -26,32 +26,7 @@ local_css()
 URL = "https://docs.google.com/spreadsheets/d/10Hhcn0qNOvGceSNWLxy3_IOCJTvS1i9xaarZirmUUdw/edit?usp=sharing"
 SHEET_NAME = "在庫データ"
 
-# --- 💡 高機能リトライ付き書き込み関数 ---
-def write_to_google_with_retry(func, *args, retries=3):
-    client = get_gspread_client()
-    sh = client.open_by_url(URL)
-    ws = sh.worksheet(SHEET_NAME)
-    
-    for i in range(retries):
-        try:
-            result = func(ws, *args)
-            st.cache_data.clear() # 成功したらキャッシュを消す
-            return result
-        except Exception as e:
-            if i < retries - 1:
-                time.sleep(1.5) # 失敗したら1.5秒待機
-                continue
-            else:
-                st.error(f"Googleサーバーが応答しません。少し待ってから再開してください。")
-                return None
-
-@st.cache_data(ttl=15) # キャッシュを少し長めの15秒に
-def get_data_cached(_sheet_name):
-    client = get_gspread_client()
-    sh = client.open_by_url(URL)
-    ws = sh.worksheet(SHEET_NAME)
-    return ws.get_all_records()
-
+# --- 💡 クライアント取得 ---
 @st.cache_resource(ttl=600)
 def get_gspread_client():
     raw_key = st.secrets["connections"]["gsheets"]["private_key"].replace("\\n", "\n").strip()
@@ -59,7 +34,35 @@ def get_gspread_client():
              "client_email": st.secrets["connections"]["gsheets"]["client_email"], "token_uri": "https://www.googleapis.com/oauth2/v4/token"}
     return gspread.service_account_from_dict(creds)
 
-# --- LINE連携 ---
+# --- 💡 データ取得（リトライ・エラー回避強化版） ---
+@st.cache_data(ttl=20) # キャッシュを20秒に。これでGoogleへの負担を大幅カット。
+def get_data_cached(_sheet_name):
+    client = get_gspread_client()
+    sh = client.open_by_url(URL)
+    # ここで直接シートを開き、失敗したらリトライ
+    for i in range(3):
+        try:
+            ws = sh.worksheet(SHEET_NAME)
+            return ws.get_all_records()
+        except:
+            time.sleep(2)
+    return []
+
+# --- 💡 書き込み関数 ---
+def write_to_google_safe(func, *args):
+    client = get_gspread_client()
+    sh = client.open_by_url(URL)
+    ws = sh.worksheet(SHEET_NAME)
+    for i in range(3):
+        try:
+            res = func(ws, *args)
+            st.cache_data.clear() # 書き込んだらキャッシュを消す
+            return res
+        except:
+            time.sleep(1.5)
+    return None
+
+# --- LINEログイン (略) ---
 def get_line_login_url():
     return (f"https://access.line.me/oauth2/v2.1/authorize?response_type=code&client_id={st.secrets['line']['login_channel_id']}"
             f"&redirect_uri=https://food-memo-app.streamlit.app&state=random&scope=profile%20openid")
@@ -89,15 +92,11 @@ if "user_id" not in st.session_state:
 uid, uname = st.session_state.user_id, st.session_state.user_name
 st.markdown(f"<div>{uname} 様</div><div class='main-title'>在庫リスト</div>", unsafe_allow_html=True)
 
-# --- 🍎 データ取得 ---
-try:
-    all_recs = get_data_cached(SHEET_NAME)
-    all_df = pd.DataFrame(all_recs) if all_recs else pd.DataFrame(columns=["品名", "数量", "賞味期限", "保存場所", "種類", "LINE_ID"])
-    all_df["LINE_ID"] = all_df["LINE_ID"].astype(str)
-    df = all_df[all_df["LINE_ID"] == uid].copy()
-except:
-    st.error("Googleサーバー接続エラー。数秒待って再読み込みしてください。")
-    st.stop()
+# --- 🍎 メイン処理 ---
+all_recs = get_data_cached(SHEET_NAME)
+all_df = pd.DataFrame(all_recs) if all_recs else pd.DataFrame(columns=["品名", "数量", "賞味期限", "保存場所", "種類", "LINE_ID"])
+all_df["LINE_ID"] = all_df["LINE_ID"].astype(str)
+df = all_df[all_df["LINE_ID"] == uid].copy()
 
 # --- サイドバー ---
 with st.sidebar:
@@ -109,18 +108,17 @@ with st.sidebar:
         c1 = st.selectbox("保存場所", ["冷蔵", "冷凍", "常温", "その他"])
         c2 = st.selectbox("種類", ["肉", "野菜", "麺", "飲み物", "その他"])
         if st.form_submit_button("追加") and n:
-            with st.spinner("保存中..."):
-                m = (all_df['品名'] == n) & (all_df['賞味期限'] == e) & (all_df['保存場所'] == c1) & (all_df['種類'] == c2) & (all_df['LINE_ID'] == uid)
-                if m.any():
-                    idx = all_df.index[m][0]
-                    new_val = int(all_df.at[idx, '数量']) + a
-                    if write_to_google_with_retry(lambda ws, r, c, v: ws.update_cell(r, c, v), int(idx) + 2, 2, int(new_val)):
-                        st.rerun()
-                else:
-                    if write_to_google_with_retry(lambda ws, row: ws.append_row(row), [n, int(a), e, c1, c2, uid]):
-                        st.rerun()
+            m = (all_df['品名'] == n) & (all_df['賞味期限'] == e) & (all_df['保存場所'] == c1) & (all_df['種類'] == c2) & (all_df['LINE_ID'] == uid)
+            if m.any():
+                idx = all_df.index[m][0]
+                new_val = int(all_df.at[idx, '数量']) + a
+                if write_to_google_safe(lambda ws, r, c, v: ws.update_cell(r, c, v), int(idx) + 2, 2, int(new_val)):
+                    st.rerun()
+            else:
+                if write_to_google_safe(lambda ws, row: ws.append_row(row), [n, int(a), e, c1, c2, uid]):
+                    st.rerun()
 
-# --- リスト表示 ---
+# --- リスト ---
 if not df.empty:
     ed_res = st.data_editor(df.assign(選択=False)[["選択", "品名", "数量", "賞味期限", "保存場所", "種類"]], 
                             use_container_width=True, hide_index=True, key="ed",
@@ -128,23 +126,21 @@ if not df.empty:
 
     # 数量変更
     if st.session_state.ed["edited_rows"]:
-        with st.spinner("更新中..."):
-            for r_idx, chg in st.session_state.ed["edited_rows"].items():
-                if "数量" in chg:
-                    actual_idx = df.index[r_idx]
-                    if write_to_google_with_retry(lambda ws, r, c, v: ws.update_cell(r, c, v), int(actual_idx) + 2, 2, int(chg["数量"])):
-                        st.rerun()
+        for r_idx, chg in st.session_state.ed["edited_rows"].items():
+            if "数量" in chg:
+                actual_idx = df.index[r_idx]
+                if write_to_google_safe(lambda ws, r, c, v: ws.update_cell(r, c, v), int(actual_idx) + 2, 2, int(chg["数量"])):
+                    st.rerun()
 
     # 削除
     if st.button("🗑️ 選択項目を削除", type="primary"):
         del_indices = ed_res[ed_res["選択"] == True].index.tolist()
         if del_indices:
-            with st.spinner("削除中..."):
-                new_all = all_df.drop(del_indices)
-                def bulk_update(ws, data):
-                    ws.clear()
-                    ws.update('A1', [all_df.columns.tolist()] + data.values.tolist())
-                if write_to_google_with_retry(bulk_update, new_all):
-                    st.rerun()
+            new_all = all_df.drop(del_indices)
+            def bulk_update(ws, data):
+                ws.clear()
+                ws.update('A1', [all_df.columns.tolist()] + data.values.tolist())
+            if write_to_google_safe(bulk_update, new_all):
+                st.rerun()
 else:
     st.info("データがありません。")
