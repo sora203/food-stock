@@ -7,9 +7,6 @@ from supabase import create_client, Client
 # --- 🎨 デザインと基本設定 ---
 st.set_page_config(page_title="在庫管理メモ", layout="wide")
 
-# カレンダーなどの日本語化のための設定（ブラウザ依存もありますが指定しておきます）
-# Streamlit標準では完全な日本語化は難しいですが、入力形式は日本の慣習に合わせます
-
 st.markdown("""
     <style>
     .stApp { background-image: url("https://www.toptal.com/designers/subtlepatterns/uploads/wood_pattern.png"); background-repeat: repeat; background-attachment: fixed; }
@@ -21,6 +18,9 @@ st.markdown("""
     #MainMenu, footer {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
+
+# 今日の日付を最初に定義しておく（エラー防止）
+today_val = date.today()
 
 # --- 💡 Supabase接続 ---
 @st.cache_resource
@@ -74,54 +74,49 @@ df = load_data()
 
 # --- ⏰ 期限アラート機能 ---
 if not df.empty:
-    today = date.today()
-    one_day_later = today + timedelta(days=1)
-    three_days_later = today + timedelta(days=3)
+    one_day_later = today_val + timedelta(days=1)
+    three_days_later = today_val + timedelta(days=3)
     
-    # 文字列の日付を比較用に変換
     df['expiry_dt'] = pd.to_datetime(df['expiry_date']).dt.date
     
-    # 期限当日
-    today_items = df[df['expiry_dt'] == today]
-    # 期限1日前
+    today_items = df[df['expiry_dt'] == today_val]
     one_day_items = df[df['expiry_dt'] == one_day_later]
-    # 期限3日前
     three_day_items = df[df['expiry_dt'] == three_days_later]
-    # すでに期限切れ
-    expired_items = df[df['expiry_dt'] < today]
+    expired_items = df[df['expiry_dt'] < today_val]
 
     if not (today_items.empty and one_day_items.empty and three_day_items.empty and expired_items.empty):
         st.markdown("### ⚠️ 期限アラート")
-        
         if not expired_items.empty:
             for _, row in expired_items.iterrows():
                 st.markdown(f"<div class='alert-box alert-today'>【期限切れ！】 {row['name']} ({row['expiry_date']})</div>", unsafe_allow_html=True)
-        
         if not today_items.empty:
             for _, row in today_items.iterrows():
                 st.markdown(f"<div class='alert-box alert-today'>【本日まで！】 {row['name']}</div>", unsafe_allow_html=True)
-        
         if not one_day_items.empty:
             for _, row in one_day_items.iterrows():
                 st.markdown(f"<div class='alert-box alert-soon'>【あと1日】 {row['name']}</div>", unsafe_allow_html=True)
-        
         if not three_day_items.empty:
             for _, row in three_day_items.iterrows():
                 st.markdown(f"<div class='alert-box alert-soon'>【あと3日】 {row['name']}</div>", unsafe_allow_html=True)
-        
         st.markdown("---")
 
 # --- サイドバー ---
 with st.sidebar:
     st.markdown("### 在庫を追加")
-    with st.form("add_form", clear_on_submit=True):
+    # フォームを開始
+    with st.form("add_new_stock_form", clear_on_submit=True):
         n = st.text_input("品名")
         a = st.number_input("数量", min_value=1, value=1)
-        # 日本語表記に近い形にするため、フォーマットを指定
-        e = st.date_input("賞味期限", value=today, format="YYYY/MM/DD").strftime('%Y-%m-%d')
+        # format引数を削除して安定性を優先
+        e_date = st.date_input("賞味期限", value=today_val)
+        e = e_date.strftime('%Y-%m-%d')
         c1 = st.selectbox("保存場所", ["冷蔵", "冷凍", "常温", "その他"])
         c2 = st.selectbox("種類", ["肉", "野菜", "麺", "飲み物", "その他"])
-        if st.form_submit_button("追加") and n:
+        
+        # フォームの送信ボタン（これがないとエラーになります）
+        submit_clicked = st.form_submit_button("追加する")
+        
+        if submit_clicked and n:
             existing = supabase.table("stocks").select("*").match({
                 "name": n, "expiry_date": e, "location": c1, "category": c2, "line_id": uid
             }).execute()
@@ -137,7 +132,6 @@ with st.sidebar:
 
 # --- メイン表示 ---
 if not df.empty:
-    # 1. 在庫表の表示
     st.dataframe(
         df[["name", "quantity", "expiry_date", "location", "category"]], 
         use_container_width=True, 
@@ -145,8 +139,6 @@ if not df.empty:
     )
 
     st.markdown("---")
-    
-    # 2. 削除の操作エリア
     st.markdown("### 🗑️ 在庫の整理")
     
     delete_items = st.multiselect(
