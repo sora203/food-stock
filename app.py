@@ -7,24 +7,28 @@ from supabase import create_client, Client
 # --- 🎨 デザインと基本設定 ---
 st.set_page_config(page_title="在庫管理メモ", layout="wide")
 
-# メインタイトルと同じ茶色（#3e2723）をテーマに、視認性を高めるCSS
 st.markdown("""
     <style>
     .stApp { background-image: url("https://www.toptal.com/designers/subtlepatterns/uploads/wood_pattern.png"); background-repeat: repeat; background-attachment: fixed; }
     [data-testid="stAppViewBlockContainer"] { background-color: rgba(245, 222, 179, 0.7); padding: 3rem; border-radius: 15px; margin-top: 2rem; }
     
-    /* メインタイトル */
+    /* メインタイトル & テキスト全般 */
     .main-title { font-size: 3.5rem; font-weight: 900; color: #3e2723; line-height: 1.1; margin-bottom: 20px; }
     
-    /* 表（DataFrame）の文字色を黒っぽく、ヘッダーをタイトル色に合わせる */
-    [data-testid="stTable"] { color: #212121; }
-    [data-testid="stDataFrame"] td { color: #212121; font-weight: 500; }
+    /* すべてのラベル（絞り込み・入力項目など）の文字色を濃い茶色に */
+    label, .stMultiSelect label, .stSelectbox label, .stTextInput label, .stNumberInput label, .stDateInput label {
+        color: #3e2723 !important;
+        font-weight: bold !important;
+        font-size: 1.1rem !important;
+    }
+
+    /* 表（DataFrame）の文字色を黒に */
+    [data-testid="stDataFrame"] td { color: #000000 !important; font-weight: 500; }
     
     /* タブの文字色調整 */
     .stTabs [data-baseweb="tab"] { color: #3e2723; font-weight: bold; }
-    .stTabs [data-baseweb="tab"]:hover { color: #5d4037; }
     
-    /* 通知カードのデザイン */
+    /* 通知カード */
     .alert-card {
         padding: 15px;
         border-radius: 12px;
@@ -76,7 +80,7 @@ if "user_id" not in st.session_state:
     qp = st.query_params
     if "code" not in qp:
         st.markdown("<h1 style='text-align: center;'>Stock Manager</h1>", unsafe_allow_html=True)
-        st.link_button("LINEでログイン", get_line_login_url())
+        st.center_button = st.link_button("LINEでログイン", get_line_login_url())
         st.stop()
     else:
         try:
@@ -117,7 +121,7 @@ if not df.empty:
             st.markdown(f"""<div class='alert-card alert-warning'><span class='alert-icon'>📅</span>【あと3日】 {row['name']} ({row['expiry_date']})</div>""", unsafe_allow_html=True)
         st.markdown("---")
 
-# --- サイドバー（追加フォーム） ---
+# --- サイドバー ---
 with st.sidebar:
     st.markdown("### 在庫を追加")
     with st.form("add_new_stock_form", clear_on_submit=True):
@@ -127,7 +131,6 @@ with st.sidebar:
         e = e_date.strftime('%Y-%m-%d')
         c1 = st.selectbox("保存場所", LOCATIONS)
         c2 = st.selectbox("種類", CATEGORIES)
-        
         if st.form_submit_button("追加する") and n:
             existing = supabase.table("stocks").match({"name": n, "expiry_date": e, "location": c1, "category": c2, "line_id": uid}).execute()
             if existing.data:
@@ -142,14 +145,14 @@ if not df.empty:
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["すべて", "❄️ 冷蔵", "🧊 冷凍", "📦 常温", "🗑️ 整理"])
 
     def display_filtered_df(target_df, key_suffix=""):
-        selected_cats = st.multiselect(f"種類で絞り込み", CATEGORIES, key=f"filter_{key_suffix}")
+        # 💡 ここで絞り込み用ラベルの文字色を制御
+        selected_cats = st.multiselect("種類で絞り込み", CATEGORIES, key=f"filter_{key_suffix}")
         if selected_cats:
             target_df = target_df[target_df['category'].isin(selected_cats)]
         
         if target_df.empty:
             st.info("該当する在庫はありません。")
         else:
-            # 表自体の表示（文字色はCSSで調整済み）
             st.dataframe(target_df[["name", "quantity", "expiry_date", "location", "category"]], use_container_width=True, hide_index=True)
 
     with tab1:
