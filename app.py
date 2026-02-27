@@ -15,14 +15,14 @@ st.markdown("""
     /* メインタイトル */
     .main-title { font-size: 3.5rem; font-weight: 900; color: #3e2723; line-height: 1.1; margin-bottom: 20px; }
     
-    /* メイン画面側のラベル（絞り込みなど）だけを茶色にする */
-    [data-testid="stAppViewBlockContainer"] label {
+    /* 🌟 メイン画面側のマルチセレクト（種類で絞り込み）のラベルだけを茶色にする */
+    [data-testid="stAppViewBlockContainer"] .stMultiSelect label {
         color: #3e2723 !important;
         font-weight: bold !important;
-        font-size: 1.1rem !important;
+        font-size: 1.2rem !important;
     }
 
-    /* 表（DataFrame）の文字色を読みやすい濃いグレーに */
+    /* 表（DataFrame）の文字色を濃いグレーに */
     [data-testid="stDataFrame"] td { color: #212121 !important; font-weight: 500; }
     
     /* タブの文字色調整 */
